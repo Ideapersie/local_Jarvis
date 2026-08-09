@@ -1,0 +1,30 @@
+/* The small amount Tailwind cannot do. */
+
+.panel {
+  background: #141416;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 0.5rem;
+  padding: 1.25rem 1.5rem 1.5rem;
+}
+
+.panel-title {
+  font-size: 0.6875rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #6b6b70;
+  padding-bottom: 0.75rem;
+  margin-bottom: 0.25rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Date pickers render white-on-white in dark mode without this. */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.6);
+  cursor: pointer;
+}
+
+/* Suppress the flash of unstyled HTMX swaps. */
+.htmx-swapping {
+  opacity: 0.5;
+  transition: opacity 80ms ease-out;
+}
