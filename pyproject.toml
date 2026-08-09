@@ -1,0 +1,17 @@
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "RUF"]
+ignore = [
+    # Depends()/Form() in argument defaults is the FastAPI idiom, not a bug.
+    "B008",
+    # SQLModel filters need `== True`, which is a SQL comparison not a bool test.
+    "E712",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+filterwarnings = ["ignore::DeprecationWarning"]
