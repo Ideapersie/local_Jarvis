@@ -1,0 +1,46 @@
+<div id="habit-{{ h.id }}" class="flex items-center gap-4 py-3 border-b border-white/5 last:border-0 group">
+
+  <button type="button"
+          hx-post="/habits/{{ h.id }}/toggle"
+          hx-target="#habit-{{ h.id }}"
+          hx-swap="outerHTML"
+          aria-pressed="{{ 'true' if h.done_today else 'false' }}"
+          aria-label="Toggle {{ h.name }}"
+          class="shrink-0 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-amber/60">
+    <svg width="30" height="30" viewBox="0 0 30 30" class="block">
+      <circle cx="15" cy="15" r="12" fill="none" stroke="#2a2a2e" stroke-width="3"/>
+      {% if h.done_today %}
+      <circle cx="15" cy="15" r="12" fill="none" stroke="#f5a524" stroke-width="3"
+              stroke-linecap="round" stroke-dasharray="75.4" stroke-dashoffset="0"
+              transform="rotate(-90 15 15)"/>
+      {% endif %}
+    </svg>
+  </button>
+
+  <div class="min-w-0 flex-1">
+    <div class="flex items-baseline gap-2">
+      <span class="truncate {{ 'text-neutral-100' if h.done_today else 'text-neutral-400' }}">{{ h.name }}</span>
+      {% if h.reminder_time %}
+        <span class="font-mono text-[10px] text-neutral-600">{{ h.reminder_time }}</span>
+      {% endif %}
+    </div>
+    <div class="mt-1.5 flex items-center gap-1" title="last 7 days">
+      {% for d in h.week %}
+        <span class="h-3 w-1.5 rounded-[1px] {{ 'bg-amber' if d.done else 'bg-white/10' }}"></span>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="shrink-0 text-right">
+    <div class="font-mono text-lg leading-none {{ 'text-amber' if h.current else 'text-neutral-600' }}">{{ h.current }}</div>
+    <div class="font-mono text-[10px] text-neutral-600 mt-1">best {{ h.best }}</div>
+  </div>
+
+  <button type="button"
+          hx-post="/habits/{{ h.id }}/archive"
+          hx-target="#habit-panel"
+          hx-swap="innerHTML"
+          hx-confirm="Archive {{ h.name }}? Its history is kept."
+          aria-label="Archive {{ h.name }}"
+          class="shrink-0 w-6 text-neutral-700 hover:text-neutral-400 opacity-0 group-hover:opacity-100 transition">&times;</button>
+</div>
