@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Jarvis</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['"IBM Plex Mono"', 'ui-monospace', 'monospace'],
+          },
+          colors: {
+            char: { 900: '#0d0d0f', 800: '#141416', 700: '#1c1c1f' },
+            amber: { DEFAULT: '#f5a524', dim: '#8a5f16' },
+          },
+        },
+      },
+    }
+  </script>
+  <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body class="bg-char-900 text-neutral-200 font-sans antialiased min-h-screen">
+
+  <header class="border-b border-white/5">
+    <div class="max-w-6xl mx-auto px-6 py-5 flex items-baseline justify-between">
+      <h1 class="text-sm tracking-[0.2em] uppercase text-amber">Jarvis</h1>
+      <span class="font-mono text-xs text-neutral-500">{{ today }}</span>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-6 py-8 grid gap-6 md:grid-cols-2">
+
+    <section class="panel">
+      <h2 class="panel-title">Habits</h2>
+      <div id="habit-panel">
+        {% include "partials/habit_panel.html" %}
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel-title">Tasks</h2>
+      <div id="task-panel">
+        {% include "partials/task_panel.html" %}
+      </div>
+    </section>
+
+  </main>
+</body>
+</html>
