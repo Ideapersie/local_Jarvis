@@ -205,3 +205,9 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Jarvis
+jarvis.db
+jarvis.db-journal
+token.json
+data/instruments.json
