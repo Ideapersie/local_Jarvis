@@ -6,15 +6,19 @@ run more than once in a process lifetime, and a job registered twice fires twice
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
-from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from sqlmodel import Session, select
 
-from app import config
+from app import config, db
+from app.integrations import notify
+from app.services import brief_builder, streaks
 
 log = logging.getLogger("jarvis.jobs")
 
-_scheduler: BackgroundScheduler | None = None
+_scheduler: AsyncIOScheduler | None = None
 
 
 def heartbeat() -> None:
