@@ -15,8 +15,9 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from app import agent, config, jobs
 from app.db import create_db_and_tables, engine, seed_habits
 from app.deps import get_session, templates
-from app.routers import chat, habits, tasks
+from app.routers import brief, chat, habits, tasks
 from app.security import ALLOWED_HOSTS, block_cross_site
+from app.services import costs
 
 logging.basicConfig(
     level=logging.INFO,
@@ -53,6 +54,7 @@ app.mount("/static", StaticFiles(directory=str(config.STATIC_DIR)), name="static
 app.include_router(habits.router)
 app.include_router(tasks.router)
 app.include_router(chat.router)
+app.include_router(brief.router)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -66,12 +68,12 @@ def index(request: Request, session: Session = Depends(get_session)):
             ],
             "tasks": tasks.open_first(session),
             "today": config.today().strftime("%d.%m.%Y %A"),
-            # Both panels render an empty state until their day lands. Passing
-            # None rather than fabricated numbers is deliberate: placeholder
-            # figures on a dashboard get read as real ones.
-            "brief": None,  # Day 3
-            "urgent": None,  # Day 3
+            "spend": costs.month_to_date(session),
+            # Portfolio still renders an empty state until Day 4. Passing None
+            # rather than fabricated numbers is deliberate: placeholder figures
+            # on a dashboard get read as real ones.
             "portfolio": None,  # Day 4
+            **brief.build_context(session),
         },
     )
 
