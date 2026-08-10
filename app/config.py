@@ -29,6 +29,21 @@ MODEL_QUICK = "claude-haiku-4-5"
 MODEL_AGENT = "claude-sonnet-5"
 MODEL_PORTFOLIO = "claude-sonnet-5"
 
+# Agent auth. "subscription" bills the monthly Agent SDK credit that comes with
+# a Claude plan (Pro $20 / Max 5x $100 / Max 20x $200, no rollover); the SDK
+# picks up the claude.ai login from ~/.claude/ when no API key reaches the
+# subprocess. "api_key" is pay-as-you-go.
+#
+# The credit is the cheaper default, but it stops dead when exhausted - so the
+# fallback matters: without it a spent credit means no 06:30 brief and no
+# warning until you notice the panel is empty.
+AGENT_AUTH = os.getenv("AGENT_AUTH", "subscription")  # subscription | api_key
+AGENT_AUTH_FALLBACK = os.getenv("AGENT_AUTH_FALLBACK", "true").lower() == "true"
+
+# Which plan's monthly credit to measure spend against on the dashboard.
+# pro | max5 | max20 | none
+PLAN = os.getenv("PLAN", "pro")
+
 # Secrets
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
