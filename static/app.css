@@ -1,30 +1,404 @@
-/* The small amount Tailwind cannot do. */
+/* Jarvis dashboard.
+ *
+ * The compact rule: the page itself never scrolls. The shell is exactly 100dvh,
+ * the grid takes the remaining height, and any panel whose content overruns
+ * scrolls inside itself. Without that last part "compact" and "readable" fight
+ * each other and readable loses.
+ */
+
+:root {
+  --gutter: 1.75rem;
+  --gap: 1rem;
+  --amber: #f5a524;
+  --panel: #141416;
+  --field: #1c1c1f;
+  --hair: rgba(255, 255, 255, 0.06);
+}
+
+/* ---------- base ----------
+ * Set here rather than as body utility classes so a page can render correctly
+ * without pulling in the Tailwind CDN.
+ */
+
+body {
+  background: #0d0d0f;
+  color: #d4d4d8;
+  font-family: Inter, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.head-date {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.75rem;
+  letter-spacing: 0.02em;
+  color: #6b6b70;
+}
+
+/* ---------- shell ---------- */
+
+.shell {
+  height: 100dvh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  padding: 0 var(--gutter) var(--gutter);
+  gap: var(--gap);
+}
+
+.shell-head {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.9rem 0 0.5rem;
+}
+
+/* Date centred per the sketch; nav sits right without pushing it off-centre. */
+.head-nav {
+  position: absolute;
+  right: 0;
+  display: flex;
+  gap: 1rem;
+}
+
+.nav-link {
+  font-size: 0.6875rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #5c5c62;
+  text-decoration: none;
+}
+.nav-link:hover { color: #a1a1a8; }
+.nav-link-on { color: var(--amber); }
+
+/* ---------- grid ---------- */
+
+.grid-2col {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+  gap: var(--gap);
+}
+
+.col {
+  min-height: 0;
+  display: grid;
+  gap: var(--gap);
+}
+
+/* Sketch proportions: habits sit above a taller portfolio block; the briefing
+   is the tallest thing on the right with to-do beneath it. */
+.col:first-child  { grid-template-rows: auto minmax(0, 1fr); }
+.col:last-child   { grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); }
+
+/* ---------- panels ---------- */
 
 .panel {
-  background: #141416;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--hair);
   border-radius: 0.5rem;
-  padding: 1.25rem 1.5rem 1.5rem;
+  padding: 0.85rem 1.1rem 1rem;
 }
 
 .panel-title {
-  font-size: 0.6875rem;
+  flex: none;
+  font-size: 0.625rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: #6b6b70;
-  padding-bottom: 0.75rem;
-  margin-bottom: 0.25rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid var(--hair);
 }
 
-/* Date pickers render white-on-white in dark mode without this. */
+/* The scroll containment that makes the no-page-scroll rule survivable. */
+.panel-body {
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #2f2f34 transparent;
+}
+
+.panel-body::-webkit-scrollbar { width: 6px; }
+.panel-body::-webkit-scrollbar-thumb { background: #2f2f34; border-radius: 3px; }
+
+.rows { flex: 1; min-height: 0; }
+
+.empty {
+  padding: 1.25rem 0;
+  font-size: 0.8125rem;
+  color: #5c5c62;
+}
+
+/* ---------- habits ---------- */
+
+.habit-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.3rem 0;
+}
+.habit-row + .habit-row { border-top: 1px solid var(--hair); }
+
+.ring-btn {
+  flex: none;
+  border-radius: 9999px;
+  line-height: 0;
+}
+.ring-btn:focus-visible { outline: 2px solid rgba(245, 165, 36, 0.6); outline-offset: 2px; }
+
+.habit-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.8125rem;
+  color: #e5e5e7;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.habit-name-off { color: #8a8a91; }
+
+.habit-week { flex: none; display: flex; gap: 2px; }
+
+.wk { width: 4px; height: 12px; border-radius: 1px; }
+.wk-on { background: var(--amber); }
+.wk-off { background: rgba(255, 255, 255, 0.09); }
+
+.habit-streak {
+  flex: none;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.875rem;
+  min-width: 1.4rem;
+  text-align: right;
+}
+.habit-best {
+  flex: none;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.625rem;
+  color: #5c5c62;
+  width: 1.6rem;
+}
+
+/* ---------- tasks ---------- */
+
+.task-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.32rem 0;
+}
+.task-row + .task-row { border-top: 1px solid var(--hair); }
+
+.task-dot {
+  flex: none;
+  width: 0.8rem;
+  height: 0.8rem;
+  border-radius: 9999px;
+  border: 2px solid #3a3a40;
+}
+.task-dot-on { border-color: var(--amber); background: var(--amber); }
+.task-dot:focus-visible { outline: 2px solid rgba(245, 165, 36, 0.6); outline-offset: 2px; }
+
+.task-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.8125rem;
+  color: #d4d4d8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.task-title-done { color: #5c5c62; text-decoration: line-through; }
+
+.task-due {
+  flex: none;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.625rem;
+  color: #5c5c62;
+}
+
+/* ---------- briefing ---------- */
+
+.prose-brief {
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  color: #c8c8cd;
+  white-space: pre-wrap;
+}
+
+/* The sketch's "transparent bit" - lifted out of the body so an interview at
+   9pm is not buried in a paragraph. Amber rule, no new colour. */
+.urgent {
+  flex: none;
+  margin-top: auto;
+  padding: 0.7rem 0.85rem;
+  background: rgba(255, 255, 255, 0.06);
+  border-left: 2px solid var(--amber);
+  border-radius: 0 0.25rem 0.25rem 0;
+}
+.urgent-empty { border-left-color: #3a3a40; }
+.urgent-empty .urgent-line { color: #5c5c62; }
+
+.urgent-line {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: #e5e5e7;
+}
+.urgent-line + .urgent-line { margin-top: 0.4rem; }
+
+/* ---------- portfolio ---------- */
+
+.pf-top {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 0.9rem 0;
+}
+
+.donut { width: 7.5rem; height: 7.5rem; flex: none; transform: rotate(-90deg); }
+.donut-hole { fill: none; stroke: #232327; stroke-width: 4; }
+.donut-seg { fill: none; stroke-width: 4; }
+
+.pf-stats { display: grid; gap: 0.5rem; }
+.pf-stats dt {
+  font-size: 0.5625rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #5c5c62;
+}
+.pf-stats dd.num {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 1rem;
+  color: #e5e5e7;
+}
+.text-up { color: #3fb950 !important; }
+.text-down { color: #f85149 !important; }
+
+.pf-notes { display: grid; gap: 0.55rem; }
+
+.pf-card {
+  padding: 0.65rem 0.8rem;
+  background: rgba(255, 255, 255, 0.045);
+  border-radius: 0.3rem;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: #c8c8cd;
+}
+
+.pf-link {
+  display: inline-block;
+  margin-top: 0.35rem;
+  font-size: 0.6875rem;
+  color: var(--amber);
+  text-decoration: none;
+}
+.pf-link:hover { text-decoration: underline; }
+
+/* ---------- forms ---------- */
+
+.add-form {
+  flex: none;
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.6rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--hair);
+}
+
+.fld {
+  background: var(--field);
+  border: 1px solid var(--hair);
+  border-radius: 0.25rem;
+  padding: 0.3rem 0.55rem;
+  font-size: 0.75rem;
+  color: #e5e5e7;
+}
+.fld::placeholder { color: #4d4d54; }
+.fld:focus { outline: none; border-color: rgba(245, 165, 36, 0.4); }
+.fld-sm { font-size: 0.6875rem; color: #a1a1a8; padding: 0.3rem 0.4rem; }
+
+.btn-add {
+  flex: none;
+  padding: 0.3rem 0.7rem;
+  border-radius: 0.25rem;
+  background: rgba(245, 165, 36, 0.14);
+  color: var(--amber);
+  font-size: 0.75rem;
+}
+.btn-add:hover { background: rgba(245, 165, 36, 0.24); }
+
+.row-x {
+  flex: none;
+  width: 1.1rem;
+  color: #3a3a40;
+  opacity: 0;
+  transition: opacity 120ms ease-out, color 120ms ease-out;
+}
+.group:hover .row-x { opacity: 1; }
+.row-x:hover { color: #a1a1a8; }
+/* Keyboard users never trigger :hover, so never reach the button otherwise. */
+.row-x:focus-visible { opacity: 1; outline: 2px solid rgba(245, 165, 36, 0.6); }
+
+/* ---------- chat bar ---------- */
+
+.chat-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0.9rem;
+  background: var(--panel);
+  border: 1px solid var(--hair);
+  border-radius: 0.5rem;
+}
+
+.chat-caret { color: var(--amber); font-size: 0.9rem; line-height: 1; }
+
+.chat-input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: 0;
+  font-size: 0.8125rem;
+  color: #e5e5e7;
+}
+.chat-input::placeholder { color: #4d4d54; }
+.chat-input:focus { outline: none; }
+.chat-input:disabled { cursor: not-allowed; }
+
+.chat-send {
+  flex: none;
+  padding: 0.25rem 0.7rem;
+  border-radius: 0.25rem;
+  background: rgba(245, 165, 36, 0.14);
+  color: var(--amber);
+  font-size: 0.75rem;
+}
+.chat-send:disabled { background: rgba(255, 255, 255, 0.05); color: #4d4d54; cursor: not-allowed; }
+
+/* ---------- misc ---------- */
+
 input[type="date"]::-webkit-calendar-picker-indicator {
-  filter: invert(0.6);
+  filter: invert(0.55);
   cursor: pointer;
 }
 
-/* Suppress the flash of unstyled HTMX swaps. */
-.htmx-swapping {
-  opacity: 0.5;
-  transition: opacity 80ms ease-out;
+.htmx-swapping { opacity: 0.5; transition: opacity 80ms ease-out; }
+
+/* Below ~1100px two columns stop being readable; stack and allow page scroll,
+   because clipping content is worse than scrolling for it. */
+@media (max-width: 1100px) {
+  .shell { height: auto; min-height: 100dvh; }
+  .grid-2col { grid-template-columns: minmax(0, 1fr); }
+  .col:first-child, .col:last-child { grid-template-rows: auto; }
+  .panel-body { overflow-y: visible; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 0.01ms !important; }
 }
