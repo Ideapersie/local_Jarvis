@@ -52,6 +52,39 @@ body {
   padding: 0.9rem 0 0.5rem;
 }
 
+/* Month-to-date model spend against the plan credit. Left of centre so the
+   date stays centred per the sketch. */
+.head-spend {
+  position: absolute;
+  left: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.6875rem;
+  color: #6b6b70;
+}
+
+.spend-num { color: #a1a1a8; }
+.spend-of { color: #4d4d54; }
+
+.spend-bar {
+  width: 3rem;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.09);
+  overflow: hidden;
+}
+
+.spend-fill {
+  display: block;
+  height: 100%;
+  background: var(--amber);
+}
+/* Red only near the ceiling: past the credit, requests stop unless usage
+   credits are enabled, so this is a real deadline not a soft one. */
+.spend-fill-warn { background: #f85149; }
+
 /* Date centred per the sketch; nav sits right without pushing it off-centre. */
 .head-nav {
   position: absolute;
@@ -495,3 +528,67 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: 0.01ms !important; }
 }
+
+/* ---------- brief panel ---------- */
+
+.brief-head {
+  flex: none;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 0.5rem 0 0.4rem;
+}
+
+.brief-day {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.6875rem;
+  color: #6b6b70;
+}
+
+.brief-full { font-size: 0.6875rem; color: var(--amber); text-decoration: none; }
+.brief-full:hover { text-decoration: underline; }
+
+.brief-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.6rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--hair);
+}
+
+.btn-ghost {
+  flex: none;
+  padding: 0.3rem 0.6rem;
+  border-radius: 0.25rem;
+  background: rgba(255, 255, 255, 0.05);
+  color: #a1a1a8;
+  font-size: 0.6875rem;
+}
+.btn-ghost:hover { background: rgba(255, 255, 255, 0.1); color: #d4d4d8; }
+
+.brief-next, .brief-warn {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.625rem;
+  color: #5c5c62;
+}
+.brief-warn { color: #8a5f16; margin-left: auto; }
+.brief-next { margin-left: auto; }
+.brief-warn + .brief-next, .brief-next + .brief-warn { margin-left: 0.5rem; }
+
+/* htmx-indicator is hidden until a request is in flight. */
+.brief-spin {
+  font-size: 0.625rem;
+  color: var(--amber);
+  display: none;
+}
+.htmx-request .brief-spin, .brief-spin.htmx-request { display: inline; }
+
+.urgent-dismiss {
+  margin-top: 0.5rem;
+  font-size: 0.625rem;
+  color: #6b6b70;
+  text-decoration: underline;
+}
+.urgent-dismiss:hover { color: #a1a1a8; }
