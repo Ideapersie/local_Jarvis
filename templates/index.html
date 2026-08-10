@@ -19,6 +19,8 @@
           colors: {
             char: { 900: '#0d0d0f', 800: '#141416', 700: '#1c1c1f' },
             amber: { DEFAULT: '#f5a524', dim: '#8a5f16' },
+            up: '#3fb950',
+            down: '#f85149',
           },
         },
       },
@@ -27,31 +29,58 @@
   <script src="https://unpkg.com/htmx.org@2.0.4"></script>
   <link rel="stylesheet" href="/static/app.css">
 </head>
-<body class="bg-char-900 text-neutral-200 font-sans antialiased min-h-screen">
+<body class="bg-char-900 text-neutral-200 font-sans antialiased">
 
-  <header class="border-b border-white/5">
-    <div class="max-w-6xl mx-auto px-6 py-5 flex items-baseline justify-between">
-      <h1 class="text-sm tracking-[0.2em] uppercase text-amber">Jarvis</h1>
-      <span class="font-mono text-xs text-neutral-500">{{ today }}</span>
-    </div>
+<div class="shell">
+
+  <header class="shell-head">
+    <span class="head-date">{{ today }}</span>
+    <nav class="head-nav">
+      <a href="/" class="nav-link nav-link-on">Dashboard</a>
+      <a href="/career" class="nav-link">Career</a>
+    </nav>
   </header>
 
-  <main class="max-w-6xl mx-auto px-6 py-8 grid gap-6 md:grid-cols-2">
+  <main class="grid-2col">
 
-    <section class="panel">
-      <h2 class="panel-title">Habits</h2>
-      <div id="habit-panel">
-        {% include "partials/habit_panel.html" %}
-      </div>
-    </section>
+    <!-- Left column -->
+    <div class="col">
+      <section class="panel panel-habits">
+        <h2 class="panel-title">Habits</h2>
+        <div id="habit-panel" class="panel-body">
+          {% include "partials/habit_panel.html" %}
+        </div>
+      </section>
 
-    <section class="panel">
-      <h2 class="panel-title">Tasks</h2>
-      <div id="task-panel">
-        {% include "partials/task_panel.html" %}
-      </div>
-    </section>
+      <section class="panel panel-portfolio">
+        <h2 class="panel-title">Portfolio</h2>
+        <div id="portfolio-panel" class="panel-body">
+          {% include "partials/portfolio_panel.html" %}
+        </div>
+      </section>
+    </div>
+
+    <!-- Right column -->
+    <div class="col">
+      <section class="panel panel-brief">
+        <h2 class="panel-title">Daily Briefing</h2>
+        <div id="brief-panel" class="panel-body">
+          {% include "partials/brief_panel.html" %}
+        </div>
+      </section>
+
+      <section class="panel panel-todo">
+        <h2 class="panel-title">To Do</h2>
+        <div id="task-panel" class="panel-body">
+          {% include "partials/task_panel.html" %}
+        </div>
+      </section>
+    </div>
 
   </main>
+
+  {% include "partials/chat_bar.html" %}
+
+</div>
 </body>
 </html>
