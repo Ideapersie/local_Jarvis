@@ -1,39 +1,38 @@
-{% for t in tasks %}
-  <div class="flex items-center gap-3 py-2.5 border-b border-white/5 last:border-0 group">
-    <button type="button"
-            hx-post="/tasks/{{ t.id }}/toggle"
-            hx-target="#task-panel"
-            hx-swap="innerHTML"
-            aria-pressed="{{ 'true' if t.done else 'false' }}"
-            aria-label="Toggle {{ t.title }}"
-            class="shrink-0 h-4 w-4 rounded-full border-2 {{ 'border-amber bg-amber' if t.done else 'border-neutral-700' }} focus:outline-none focus-visible:ring-2 focus-visible:ring-amber/60"></button>
+<div class="rows">
+  {% for t in tasks %}
+    <div class="task-row group">
+      <button type="button"
+              hx-post="/tasks/{{ t.id }}/toggle"
+              hx-target="#task-panel"
+              hx-swap="innerHTML"
+              aria-pressed="{{ 'true' if t.done else 'false' }}"
+              aria-label="Toggle {{ t.title }}"
+              class="task-dot {{ 'task-dot-on' if t.done else '' }}"></button>
 
-    <span class="flex-1 min-w-0 truncate text-sm {{ 'text-neutral-600 line-through' if t.done else 'text-neutral-300' }}">{{ t.title }}</span>
+      <span class="task-title {{ 'task-title-done' if t.done else '' }}">{{ t.title }}</span>
 
-    {% if t.due %}
-      <span class="shrink-0 font-mono text-[10px] text-neutral-600">{{ t.due.isoformat() }}</span>
-    {% endif %}
+      {% if t.due %}
+        <span class="task-due">{{ t.due.isoformat() }}</span>
+      {% endif %}
 
-    <button type="button"
-            hx-delete="/tasks/{{ t.id }}"
-            hx-target="#task-panel"
-            hx-swap="innerHTML"
-            aria-label="Delete {{ t.title }}"
-            class="shrink-0 w-6 text-neutral-700 hover:text-neutral-400 opacity-0 group-hover:opacity-100 transition">&times;</button>
-  </div>
-{% else %}
-  <p class="py-6 text-sm text-neutral-600">Nothing on the list.</p>
-{% endfor %}
+      <button type="button"
+              hx-delete="/tasks/{{ t.id }}"
+              hx-target="#task-panel"
+              hx-swap="innerHTML"
+              aria-label="Delete {{ t.title }}"
+              class="row-x">&times;</button>
+    </div>
+  {% else %}
+    <p class="empty">Nothing on the list.</p>
+  {% endfor %}
+</div>
 
 <form hx-post="/tasks"
       hx-target="#task-panel"
       hx-swap="innerHTML"
       hx-on::after-request="this.reset()"
-      class="mt-4 pt-4 border-t border-white/5 flex gap-2">
-  <input name="title" placeholder="new task" required
-         class="flex-1 min-w-0 bg-char-700 border border-white/5 rounded px-3 py-1.5 text-sm placeholder:text-neutral-600 focus:outline-none focus:border-amber/40">
-  <input name="due" type="date"
-         class="bg-char-700 border border-white/5 rounded px-2 py-1.5 font-mono text-xs text-neutral-400 focus:outline-none focus:border-amber/40">
-  <button type="submit"
-          class="px-3 py-1.5 rounded bg-amber/15 text-amber text-sm hover:bg-amber/25">Add</button>
+      class="add-form">
+  <input name="title" placeholder="new task" required class="fld flex-1 min-w-0">
+  <input name="due" type="date" class="fld fld-sm font-mono">
+  <button type="submit" class="btn-add">Add</button>
 </form>

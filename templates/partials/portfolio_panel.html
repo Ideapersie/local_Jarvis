@@ -1,0 +1,42 @@
+{% if portfolio %}
+  <div class="pf-top">
+    {# Allocation donut, drawn from real weights - no chart library, just arcs. #}
+    <svg viewBox="0 0 42 42" class="donut" role="img" aria-label="Allocation by position">
+      <circle class="donut-hole" cx="21" cy="21" r="15.9"></circle>
+      {% for seg in portfolio.segments %}
+        <circle class="donut-seg" cx="21" cy="21" r="15.9"
+                stroke="{{ seg.colour }}"
+                stroke-dasharray="{{ seg.pct }} {{ 100 - seg.pct }}"
+                stroke-dashoffset="{{ seg.offset }}"></circle>
+      {% endfor %}
+    </svg>
+    <dl class="pf-stats">
+      <div><dt>Value</dt><dd class="num">{{ portfolio.total_value }}</dd></div>
+      <div><dt>Day</dt>
+        <dd class="num {{ 'text-up' if portfolio.day_change >= 0 else 'text-down' }}">
+          {{ '%+.2f'|format(portfolio.day_change) }}%
+        </dd>
+      </div>
+      <div><dt>Cash</dt><dd class="num">{{ portfolio.cash_free }}</dd></div>
+    </dl>
+  </div>
+
+  <div class="pf-notes">
+    {% if portfolio.market_note %}
+      <div class="pf-card">
+        <p>{{ portfolio.market_note.text }}</p>
+        {% if portfolio.market_note.url %}
+          <a href="{{ portfolio.market_note.url }}" target="_blank" rel="noopener noreferrer"
+             class="pf-link">{{ portfolio.market_note.source }} &rarr;</a>
+        {% endif %}
+      </div>
+    {% endif %}
+    {% if portfolio.suggestions %}
+      <div class="pf-card">
+        <p>{{ portfolio.suggestions }}</p>
+      </div>
+    {% endif %}
+  </div>
+{% else %}
+  <p class="empty">Portfolio not connected. Trading212 sync arrives on Day 4.</p>
+{% endif %}

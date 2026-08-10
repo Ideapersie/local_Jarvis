@@ -1,0 +1,19 @@
+{% if brief %}
+  <div class="prose-brief">{{ brief.body }}</div>
+{% else %}
+  <p class="empty">No brief yet. Runs 06:30 — or trigger one once Day 3 lands.</p>
+{% endif %}
+
+{# The sketch's "transparent bit": urgent items lifted out of the brief body so
+   they cannot be missed in a wall of text. Amber rule rather than a new colour. #}
+{% if urgent %}
+  <div class="urgent">
+    {% for item in urgent %}
+      <p class="urgent-line">{{ item }}</p>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="urgent urgent-empty">
+    <p class="urgent-line">Nothing flagged urgent today.</p>
+  </div>
+{% endif %}

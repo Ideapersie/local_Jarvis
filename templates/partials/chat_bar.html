@@ -1,0 +1,10 @@
+{# Shell only. Wired up in Day 2a - built now so adding chat doesn't force a
+   relayout of everything above it. Input is disabled until then, deliberately:
+   an input that silently does nothing is worse than one that says why. #}
+<form class="chat-bar" aria-label="Ask Jarvis" onsubmit="return false;">
+  <span class="chat-caret" aria-hidden="true">&rsaquo;</span>
+  <input type="text" disabled
+         placeholder="Ask Jarvis — available once the agent lands (Day 2a)"
+         class="chat-input">
+  <button type="submit" disabled class="chat-send">Send</button>
+</form>
