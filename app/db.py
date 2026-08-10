@@ -71,6 +71,52 @@ class Skill(SQLModel, table=True):
     last_touched: date | None = None
 
 
+class Reminder(SQLModel, table=True):
+    """A nudge the app decided to send.
+
+    Persisted even when Telegram delivers it, so the dashboard can show what was
+    sent and the 18:00 check is verifiable after the fact rather than only in a
+    log line.
+    """
+
+    id: int | None = Field(default=None, primary_key=True)
+    at: datetime = Field(index=True)
+    kind: str  # creatine | brief | reflection | manual
+    body: str
+    delivered_via: str  # telegram | log
+    seen: bool = False
+
+
+class Brief(SQLModel, table=True):
+    """Index of written briefs. The prose lives in briefs/YYYY-MM-DD.md."""
+
+    id: int | None = Field(default=None, primary_key=True)
+    day: date = Field(index=True, unique=True)
+    summary: str  # short version the dashboard panel renders
+    path: str
+    urgent: str | None = None  # newline-separated, drives the Urgent card
+    created_at: datetime
+
+
+class CostLog(SQLModel, table=True):
+    """One row per model call, so spend is measured rather than guessed.
+
+    total_cost_usd comes back on every agent turn and is otherwise discarded.
+    Recording it is what makes "is this too expensive" answerable.
+    """
+
+    id: int | None = Field(default=None, primary_key=True)
+    at: datetime = Field(index=True)
+    kind: str  # chat_quick | chat_agent | brief | reflection | portfolio | triage
+    tier: str  # quick | agent
+    model: str
+    auth: str  # subscription | api_key - which pool paid for it
+    cost_usd: float
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cache_read_tokens: int = 0
+
+
 class Holding(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     ticker: str = Field(index=True)
