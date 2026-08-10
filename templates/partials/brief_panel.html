@@ -1,19 +1,55 @@
 {% if brief %}
-  <div class="prose-brief">{{ brief.body }}</div>
+  <div class="brief-head">
+    <span class="brief-day">{{ brief.day.strftime('%d %b') }}</span>
+    <a href="/brief/today" class="brief-full">read full &rarr;</a>
+  </div>
+  <div class="prose-brief">{{ brief.summary }}</div>
 {% else %}
-  <p class="empty">No brief yet. Runs 06:30 — or trigger one once Day 3 lands.</p>
+  <p class="empty">No brief yet. Runs 06:30 daily.</p>
 {% endif %}
 
-{# The sketch's "transparent bit": urgent items lifted out of the brief body so
-   they cannot be missed in a wall of text. Amber rule rather than a new colour. #}
+{# The sketch's "transparent bit": urgent items lifted out so they cannot be
+   missed in a wall of text. Amber rule rather than a new colour. #}
 {% if urgent %}
   <div class="urgent">
     {% for item in urgent %}
       <p class="urgent-line">{{ item }}</p>
     {% endfor %}
+    <button type="button"
+            hx-post="/brief/reminders/seen"
+            hx-target="#brief-panel"
+            hx-swap="innerHTML"
+            class="urgent-dismiss">dismiss</button>
   </div>
 {% else %}
   <div class="urgent urgent-empty">
     <p class="urgent-line">Nothing flagged urgent today.</p>
   </div>
 {% endif %}
+
+<div class="brief-actions">
+  <button type="button"
+          hx-post="/brief/run"
+          hx-target="#brief-panel"
+          hx-swap="innerHTML"
+          hx-indicator="#brief-spin"
+          hx-confirm="Generate today's brief? This costs one agent turn (~$0.15)."
+          class="btn-add">Run brief</button>
+  <button type="button"
+          hx-post="/brief/job/creatine_check"
+          hx-target="#brief-panel"
+          hx-swap="innerHTML"
+          class="btn-ghost">Test 18:00</button>
+  <span id="brief-spin" class="htmx-indicator brief-spin">working...</span>
+
+  {% if jobs %}
+    <span class="brief-next" title="{{ jobs|map(attribute='id')|join(', ') }}">
+      next {{ jobs[0].next }}
+    </span>
+  {% endif %}
+  {% if not telegram %}
+    <span class="brief-warn" title="Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in .env">
+      no telegram
+    </span>
+  {% endif %}
+</div>
