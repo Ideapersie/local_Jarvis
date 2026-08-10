@@ -7,7 +7,10 @@ select = ["E", "F", "I", "B", "UP", "RUF"]
 ignore = [
     # Depends()/Form() in argument defaults is the FastAPI idiom, not a bug.
     "B008",
-    # SQLModel filters need `== True`, which is a SQL comparison not a bool test.
+    # SQLModel filters need `== True` / `!= None`: these build SQL expressions,
+    # they are not Python truthiness or identity tests. `is not None` would
+    # evaluate in Python and produce a bare bool instead of a WHERE clause.
+    "E711",
     "E712",
 ]
 
