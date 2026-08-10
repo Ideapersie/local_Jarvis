@@ -1,0 +1,25 @@
+{# Transcript overlay. Hidden until body.chat-open is set by the send handler.
+   Sits above the grid rather than inside it, so opening chat never reflows the
+   dashboard. #}
+<div id="chat-overlay" class="chat-overlay" role="dialog" aria-label="Chat with Jarvis">
+  <div class="chat-head">
+    <span class="chat-head-title">Jarvis</span>
+    <button type="button" class="chat-close"
+            aria-label="Close chat"
+            onclick="document.body.classList.remove('chat-open')">&times;</button>
+  </div>
+  <div id="chat-log" class="chat-log"></div>
+</div>
+
+<script>
+  // Esc closes the overlay. The only client-side state in the app, and it is
+  // presentation - no server state is mirrored here.
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') document.body.classList.remove('chat-open');
+  });
+
+  // Keep the transcript pinned to the newest content as tokens stream in.
+  const log = document.getElementById('chat-log');
+  new MutationObserver(() => { log.scrollTop = log.scrollHeight; })
+    .observe(log, { childList: true, subtree: true, characterData: true });
+</script>

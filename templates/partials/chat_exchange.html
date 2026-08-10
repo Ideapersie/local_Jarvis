@@ -1,0 +1,15 @@
+{# One exchange: the user's message, then an assistant bubble that fills over SSE.
+
+   sse-swap listens for both `token` and `tool`; hx-swap="beforeend" is what makes
+   them accumulate rather than each one replacing the last. `sse-close="done"`
+   tears down the EventSource when the turn ends - without it the browser
+   reconnects on close and the turn runs again. #}
+
+<div class="msg msg-user">{{ user_text }}</div>
+
+<div class="msg msg-agent"
+     hx-ext="sse"
+     sse-connect="/chat/stream/{{ msg_id }}"
+     sse-swap="token,tool"
+     hx-swap="beforeend"
+     sse-close="done"></div>

@@ -27,6 +27,7 @@
     }
   </script>
   <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+  <script src="https://cdn.jsdelivr.net/npm/htmx-ext-sse@2.2.4"></script>
   <link rel="stylesheet" href="/static/app.css">
 </head>
 <body class="bg-char-900 text-neutral-200 font-sans antialiased">
@@ -79,6 +80,7 @@
 
   </main>
 
+  {% include "partials/chat_overlay.html" %}
   {% include "partials/chat_bar.html" %}
 
 </div>
