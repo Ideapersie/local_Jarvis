@@ -36,6 +36,19 @@
 
   <header class="shell-head">
     <span class="head-date">{{ today }}</span>
+    {% if spend %}
+      <span class="head-spend"
+            title="Month to date across {{ spend.calls }} model calls{% if spend.credit %}, against your ${{ '%.0f'|format(spend.credit) }} plan credit{% endif %}">
+        <span class="spend-num">${{ '%.2f'|format(spend.total) }}</span>
+        {%- if spend.credit %} <span class="spend-of">/ ${{ '%.0f'|format(spend.credit) }}</span>{% endif %}
+        {%- if spend.pct is not none %}
+          <span class="spend-bar" aria-hidden="true">
+            <span class="spend-fill {{ 'spend-fill-warn' if spend.pct > 80 else '' }}"
+                  style="width: {{ '%.0f'|format(spend.pct) }}%"></span>
+          </span>
+        {%- endif %}
+      </span>
+    {% endif %}
     <nav class="head-nav">
       <a href="/" class="nav-link nav-link-on">Dashboard</a>
       <a href="/career" class="nav-link">Career</a>
