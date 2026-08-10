@@ -17,19 +17,25 @@ router = APIRouter(prefix="/habits", tags=["habits"])
 
 
 def build_row(session: Session, habit: Habit) -> dict[str, Any]:
-    """View model for one habit row."""
+    """View model for one habit row.
+
+    Fetches the habit's logged days once and derives all four numbers from it.
+    Going through the session-taking wrappers instead would cost four queries
+    per habit.
+    """
     today = config.today()
+    days = streaks.logged_days(session, habit.id)
     return {
         "id": habit.id,
         "name": habit.name,
         "category": habit.category,
         "reminder_time": habit.reminder_time,
-        "done_today": streaks.is_done(session, habit.id, today),
-        "current": streaks.current_streak(session, habit.id, today),
-        "best": streaks.best_streak(session, habit.id),
+        "done_today": today in days,
+        "current": streaks.current_streak_from(days, today),
+        "best": streaks.best_streak_from(days),
         "week": [
             {"day": day.isoformat(), "done": done}
-            for day, done in streaks.week_history(session, habit.id, today)
+            for day, done in streaks.week_history_from(days, today)
         ],
     }
 
@@ -53,10 +59,15 @@ def render_row(request: Request, session: Session, habit: Habit) -> HTMLResponse
     )
 
 
-def _get(session: Session, habit_id: int) -> Habit:
+def _get(session: Session, habit_id: int, *, active_only: bool = False) -> Habit:
     habit = session.get(Habit, habit_id)
     if habit is None:
         raise HTTPException(status_code=404, detail="habit not found")
+    if active_only and not habit.active:
+        # Archiving exists to freeze a habit's history. Accepting a log against
+        # an archived habit - from a stale tab or a replayed request - would
+        # quietly corrupt the thing the archive was meant to preserve.
+        raise HTTPException(status_code=409, detail="habit is archived")
     return habit
 
 
@@ -68,7 +79,7 @@ def panel(request: Request, session: Session = Depends(get_session)):
 @router.post("/{habit_id}/toggle", response_class=HTMLResponse)
 def toggle(habit_id: int, request: Request, session: Session = Depends(get_session)):
     """Tick or untick today. Returns only this habit's row."""
-    habit = _get(session, habit_id)
+    habit = _get(session, habit_id, active_only=True)
     today = config.today()
 
     existing = session.exec(
@@ -112,8 +123,10 @@ def add(
 def archive(habit_id: int, request: Request, session: Session = Depends(get_session)):
     """Soft delete. The logs stay, so history and past streaks stay intact."""
     habit = _get(session, habit_id)
-    habit.active = False
-    habit.archived_at = config.today()
-    session.add(habit)
-    session.commit()
+    if habit.active:
+        # Idempotent: re-archiving must not overwrite the original date.
+        habit.active = False
+        habit.archived_at = config.today()
+        session.add(habit)
+        session.commit()
     return render_panel(request, session)
