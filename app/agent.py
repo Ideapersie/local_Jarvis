@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import time
 from pathlib import Path
 from typing import Any
@@ -76,8 +77,61 @@ async def can_use_tool(
     )
 
 
-def build_options() -> ClaudeAgentOptions:
+def _subprocess_env() -> dict[str, str]:
+    """Environment for the CLI subprocess, with the API key stripped.
+
+    The SDK prefers ANTHROPIC_API_KEY over the claude.ai login, so the only way
+    to bill the subscription credit is to make sure the key never reaches the
+    subprocess. Removing it from the parent process is not enough - and note
+    app.config calls load_dotenv() at import, which puts it back into os.environ.
+    """
+    return {k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY"}
+
+
+# Set once the subscription credit is found to be exhausted, so later sessions
+# skip straight to the API key instead of failing the same way again.
+_credit_exhausted = False
+
+# Signals that the plan credit is gone rather than something else being wrong.
+_CREDIT_SIGNALS = (
+    "credit",
+    "quota",
+    "usage limit",
+    "rate limit",
+    "insufficient",
+    "authentication",
+    "unauthorized",
+)
+
+
+def looks_like_credit_exhaustion(text: str) -> bool:
+    low = (text or "").lower()
+    return any(sig in low for sig in _CREDIT_SIGNALS)
+
+
+def note_credit_exhausted() -> None:
+    """Flip to API-key auth for subsequent sessions."""
+    global _credit_exhausted
+    if not _credit_exhausted:
+        _credit_exhausted = True
+        log.warning(
+            "subscription credit appears exhausted; falling back to API key auth"
+        )
+
+
+def active_auth() -> str:
+    """Which auth the next session will use."""
+    if config.AGENT_AUTH != "subscription":
+        return "api_key"
+    if _credit_exhausted and config.AGENT_AUTH_FALLBACK and config.ANTHROPIC_API_KEY:
+        return "api_key"
+    return "subscription"
+
+
+def build_options(auth: str | None = None) -> ClaudeAgentOptions:
+    auth = auth or active_auth()
     return ClaudeAgentOptions(
+        env=_subprocess_env() if auth == "subscription" else dict(os.environ),
         # Pinned to the repo. The agent must never see the home directory.
         cwd=str(config.ROOT),
         # Without this, .claude/ is silently ignored and the agent behaves
@@ -132,11 +186,17 @@ async def get_entry(session_id: str) -> _Entry:
             log.info("session cap reached, evicting %s", oldest)
             await _close(oldest)
 
-        client = ClaudeSDKClient(options=build_options())
+        auth = active_auth()
+        client = ClaudeSDKClient(options=build_options(auth))
         await client.connect()
         entry = _Entry(client)
         _sessions[session_id] = entry
-        log.info("agent session started: %s (%d live)", session_id, len(_sessions))
+        log.info(
+            "agent session started: %s (auth=%s, %d live)",
+            session_id,
+            auth,
+            len(_sessions),
+        )
         return entry
 
 
