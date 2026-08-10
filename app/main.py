@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.responses import HTMLResponse
@@ -11,10 +12,10 @@ from fastapi.staticfiles import StaticFiles
 from sqlmodel import Session
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from app import config, jobs
+from app import agent, config, jobs
 from app.db import create_db_and_tables, engine, seed_habits
 from app.deps import get_session, templates
-from app.routers import habits, tasks
+from app.routers import chat, habits, tasks
 from app.security import ALLOWED_HOSTS, block_cross_site
 
 logging.basicConfig(
@@ -33,7 +34,14 @@ async def lifespan(app: FastAPI):
     if seeded:
         log.info("seeded %d habits", seeded)
     jobs.start()
+    # Each agent session owns a CLI subprocess, so idle ones must be closed
+    # rather than left to accumulate.
+    reaper = asyncio.create_task(agent.reaper_loop())
     yield
+    reaper.cancel()
+    with suppress(asyncio.CancelledError):
+        await reaper
+    await agent.shutdown_all()
     jobs.shutdown()
 
 
@@ -44,6 +52,7 @@ app.add_middleware(TrustedHostMiddleware, allowed_hosts=ALLOWED_HOSTS)
 app.mount("/static", StaticFiles(directory=str(config.STATIC_DIR)), name="static")
 app.include_router(habits.router)
 app.include_router(tasks.router)
+app.include_router(chat.router)
 
 
 @app.get("/", response_class=HTMLResponse)
