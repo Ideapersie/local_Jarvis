@@ -27,7 +27,7 @@ BRIEFS_DIR = ROOT / "briefs"
 # portfolio tier only where a wrong answer costs money.
 MODEL_QUICK = "claude-haiku-4-5"
 MODEL_AGENT = "claude-sonnet-5"
-MODEL_PORTFOLIO = "claude-opus-5"
+MODEL_PORTFOLIO = "claude-sonnet-5"
 
 # Secrets
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
