@@ -48,8 +48,20 @@ TZ = ZoneInfo(TIMEZONE)
 
 
 def now() -> datetime:
-    """Local wall-clock time. Every date decision in the app goes through here."""
-    return datetime.now(TZ)
+    """Local wall-clock time, deliberately NAIVE. Every timestamp goes through here.
+
+    SQLite has no timezone type: SQLAlchemy writes a tz-aware datetime and reads
+    it back naive, so mixing the two raises `can't subtract offset-naive and
+    offset-aware datetimes` the first time anything compares a stored timestamp
+    to the current one. Returning naive keeps both sides of every comparison in
+    the same space.
+
+    Every timestamp here means "when did this happen in my life" - one user, one
+    timezone, and APScheduler takes its zone from the TZ string rather than from
+    these values. The cost is that timestamps written before a permanent move to
+    another timezone stay on the old wall clock.
+    """
+    return datetime.now(TZ).replace(tzinfo=None)
 
 
 def today() -> date:
