@@ -1,4 +1,4 @@
-"""APScheduler jobs, registered from the FastAPI lifespan.
+"""Scheduled jobs.
 
 Registration is idempotent on purpose. Under `uvicorn --reload` the lifespan can
 run more than once in a process lifetime, and a job registered twice fires twice.
@@ -112,18 +112,31 @@ def start() -> AsyncIOScheduler:
     if _scheduler is not None and _scheduler.running:
         return _scheduler
 
-    _scheduler = BackgroundScheduler(timezone=config.TIMEZONE)
+    _scheduler = AsyncIOScheduler(timezone=config.TIMEZONE)
+    common = dict(replace_existing=True, max_instances=1, coalesce=True)
+
     _scheduler.add_job(
-        heartbeat,
-        trigger="interval",
-        seconds=30,
-        id="heartbeat",
-        replace_existing=True,
-        max_instances=1,
-        coalesce=True,
+        morning_brief, "cron", hour=6, minute=30, id="morning_brief", **common
     )
+    _scheduler.add_job(
+        creatine_check, "cron", hour=18, minute=0, id="creatine_check", **common
+    )
+    _scheduler.add_job(
+        weekly_reflection,
+        "cron",
+        day_of_week="sun",
+        hour=19,
+        minute=0,
+        id="weekly_reflection",
+        **common,
+    )
+
     _scheduler.start()
-    log.info("scheduler started (tz=%s)", config.TIMEZONE)
+    log.info(
+        "scheduler started (tz=%s): %s",
+        config.TIMEZONE,
+        ", ".join(j.id for j in _scheduler.get_jobs()),
+    )
     return _scheduler
 
 
@@ -133,3 +146,31 @@ def shutdown() -> None:
         _scheduler.shutdown(wait=False)
         log.info("scheduler stopped")
     _scheduler = None
+
+
+def jobs_status() -> list[dict]:
+    if _scheduler is None or not _scheduler.running:
+        return []
+    return [
+        {
+            "id": j.id,
+            "next": j.next_run_time.strftime("%a %d %b %H:%M")
+            if j.next_run_time
+            else None,
+        }
+        for j in _scheduler.get_jobs()
+    ]
+
+
+async def run_now(job_id: str) -> None:
+    """Fire a job immediately, for testing. Sync jobs go to a thread."""
+    targets = {
+        "morning_brief": morning_brief,
+        "creatine_check": creatine_check,
+        "weekly_reflection": weekly_reflection,
+    }
+    fn = targets[job_id]
+    if asyncio.iscoroutinefunction(fn):
+        await fn()
+    else:
+        await asyncio.to_thread(fn)
