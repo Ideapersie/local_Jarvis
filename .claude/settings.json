@@ -1,0 +1,24 @@
+{
+  "_comment": [
+    "Write and Edit are intentionally NOT listed under allow. An allow rule",
+    "auto-approves a tool before app/agent.py's can_use_tool callback runs,",
+    "which would silently disable the brain/ + briefs/ path confinement.",
+    "Writes must fall through to that callback - it is the only real gate."
+  ],
+  "permissions": {
+    "allow": [
+      "Read",
+      "Glob",
+      "Grep",
+      "mcp__jarvis__*"
+    ],
+    "deny": [
+      "Bash",
+      "WebFetch",
+      "Read(.env)",
+      "Read(.env.*)",
+      "Read(token.json)",
+      "Read(credentials.json)"
+    ]
+  }
+}
