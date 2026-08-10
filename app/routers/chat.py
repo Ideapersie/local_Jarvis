@@ -23,8 +23,9 @@ from claude_agent_sdk import (
 from fastapi import APIRouter, Cookie, Form, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, StreamingResponse
 
-from app import agent
+from app import agent, config, quick
 from app.deps import templates
+from app.services import costs
 
 log = logging.getLogger("jarvis.chat")
 
@@ -101,12 +102,23 @@ async def send(
 
 
 async def _run_turn(session_id: str, prompt: str):
-    """Yield SSE frames for one agent turn.
+    """Answer one message, cheaply if possible.
 
-    Emits `tool` frames as they happen so the transcript shows work in progress
-    rather than a long pause, and so it is visible whether the agent actually
-    queried the database or answered from guesswork.
+    Tries the quick tier first: a single Haiku call over a prefetched snapshot,
+    roughly ninety times cheaper than an agent turn. It escalates itself when the
+    question needs files, the web, or multi-step work, and any failure escalates
+    too - a broken quick tier should cost a slower answer, never a wrong one.
     """
+    answer, meta = await asyncio.to_thread(quick.try_answer, prompt)
+    if answer is not None:
+        log.info("quick tier answered (cost=$%.5f)", meta.get("cost_usd", 0.0))
+        yield _sse("tool", '<span class="tool-line">&rarr; quick</span>')
+        yield _sse("token", _render(answer))
+        yield _sse("done", "")
+        return
+
+    log.info("escalating to agent tier: %s", meta.get("reason"))
+
     try:
         entry = await agent.get_entry(session_id)
     except Exception:
@@ -132,6 +144,28 @@ async def _run_turn(session_id: str, prompt: str):
                                 f'<span class="tool-line">&rarr; {tag}</span>',
                             )
                 elif isinstance(msg, ResultMessage):
+                    auth = agent.active_auth()
+                    costs.record(
+                        "chat_agent",
+                        "agent",
+                        config.MODEL_AGENT,
+                        msg.total_cost_usd,
+                        auth=auth,
+                        usage=msg.usage or {},
+                    )
+                    log.info(
+                        "agent turn: cost=$%.4f turns=%d auth=%s",
+                        msg.total_cost_usd or 0.0,
+                        msg.num_turns,
+                        auth,
+                    )
+                    # A spent plan credit stops requests dead. Detect it here so
+                    # the next session silently uses the API key instead of the
+                    # brief just not appearing one morning.
+                    if msg.is_error and agent.looks_like_credit_exhaustion(
+                        " ".join(msg.errors or []) + (msg.result or "")
+                    ):
+                        agent.note_credit_exhausted()
                     break
         except asyncio.CancelledError:
             # Browser closed the EventSource. Not an error.
