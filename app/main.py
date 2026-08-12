@@ -38,10 +38,14 @@ async def lifespan(app: FastAPI):
     # Each agent session owns a CLI subprocess, so idle ones must be closed
     # rather than left to accumulate.
     reaper = asyncio.create_task(agent.reaper_loop())
+    # Backgrounded, not awaited: a missed brief costs an agent turn of ten-odd
+    # seconds, and the dashboard should not sit unreachable while it runs.
+    catchup = asyncio.create_task(jobs.catch_up())
     yield
-    reaper.cancel()
-    with suppress(asyncio.CancelledError):
-        await reaper
+    for task in (reaper, catchup):
+        task.cancel()
+        with suppress(asyncio.CancelledError):
+            await task
     await agent.shutdown_all()
     jobs.shutdown()
 
