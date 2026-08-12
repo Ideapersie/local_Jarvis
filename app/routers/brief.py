@@ -25,11 +25,19 @@ def build_context(session: Session) -> dict:
     # Reminders share the urgent card - a 6pm nudge is exactly the sort of thing
     # that belongs there.
     urgent += [r.body for r in notify.unseen(session)]
+
+    # A day with no brief should read as missed, not as absent. The scheduler
+    # lives in-process, so "the machine was off at 06:30" produces silence -
+    # and silence is indistinguishable from "nothing happened today" unless the
+    # panel says otherwise.
+    previous = brief_builder.most_recent(session)
     return {
         "brief": row,
         "urgent": urgent,
         "jobs": jobs.jobs_status(),
         "telegram": notify.telegram_configured(),
+        "last_brief": previous,
+        "missed": row is None and jobs.catch_up_due(),
     }
 
 
