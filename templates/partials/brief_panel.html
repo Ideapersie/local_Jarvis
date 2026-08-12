@@ -4,8 +4,19 @@
     <a href="/brief/today" class="brief-full">read full &rarr;</a>
   </div>
   <div class="prose-brief">{{ brief.summary }}</div>
+{% elif missed %}
+  {# 06:30 has passed with no brief - the machine was almost certainly off.
+     Say so rather than showing the same "not yet" as at 5am. #}
+  <p class="empty">
+    Today's 06:30 brief did not run — Jarvis was not running at the time.
+    {% if last_brief %}Last brief: {{ last_brief.day.strftime('%d %b') }}.{% endif %}
+    Run it now below.
+  </p>
 {% else %}
-  <p class="empty">No brief yet. Runs 06:30 daily.</p>
+  <p class="empty">
+    No brief yet. Runs 06:30 daily.
+    {% if last_brief %}Last: {{ last_brief.day.strftime('%d %b') }}.{% endif %}
+  </p>
 {% endif %}
 
 {# The sketch's "transparent bit": urgent items lifted out so they cannot be
