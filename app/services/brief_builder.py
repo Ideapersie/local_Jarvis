@@ -240,3 +240,10 @@ def latest(session: Session, day: date | None = None) -> db.Brief | None:
     return session.exec(
         select(db.Brief).where(db.Brief.day == (day or config.today()))
     ).first()
+
+
+def most_recent(session: Session) -> db.Brief | None:
+    """The newest brief of any day, for showing how long it has been."""
+    return session.exec(
+        select(db.Brief).order_by(db.Brief.day.desc()).limit(1)
+    ).first()
