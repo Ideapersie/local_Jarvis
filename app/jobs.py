@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import datetime
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from sqlmodel import Session, select
@@ -24,6 +25,10 @@ _scheduler: AsyncIOScheduler | None = None
 # --- 06:30 morning brief ----------------------------------------------------
 
 
+BRIEF_HOUR = 6
+BRIEF_MINUTE = 30
+
+
 async def morning_brief() -> None:
     log.info("06:30 job: building morning brief")
     row = await brief_builder.build()
@@ -32,6 +37,34 @@ async def morning_brief() -> None:
         return
     if row.urgent:
         notify.send(f"Today needs attention:\n{row.urgent}", kind="brief")
+
+
+def catch_up_due(now: datetime | None = None) -> bool:
+    """True if today's brief was missed and is still worth building.
+
+    APScheduler is in-process: a cron job for 06:30 does not fire at all if the
+    machine was off at 06:30, and nothing retries it. Autostart at login only
+    helps when login happens before the scheduled time - boot the laptop at 09:00
+    and you would silently get no brief that day. This is the check that closes
+    that hole.
+    """
+    now = now or config.now()
+    scheduled = now.replace(
+        hour=BRIEF_HOUR, minute=BRIEF_MINUTE, second=0, microsecond=0
+    )
+    if now < scheduled:
+        return False  # 06:30 has not passed yet; the cron job will handle it.
+
+    with Session(db.engine) as s:
+        return brief_builder.latest(s, now.date()) is None
+
+
+async def catch_up() -> None:
+    """Build a missed brief once, on startup. Never on a schedule."""
+    if not catch_up_due():
+        return
+    log.info("catch-up: today's brief was missed, building it now")
+    await morning_brief()
 
 
 # --- 18:00 creatine check ---------------------------------------------------
@@ -116,7 +149,12 @@ def start() -> AsyncIOScheduler:
     common = dict(replace_existing=True, max_instances=1, coalesce=True)
 
     _scheduler.add_job(
-        morning_brief, "cron", hour=6, minute=30, id="morning_brief", **common
+        morning_brief,
+        "cron",
+        hour=BRIEF_HOUR,
+        minute=BRIEF_MINUTE,
+        id="morning_brief",
+        **common,
     )
     _scheduler.add_job(
         creatine_check, "cron", hour=18, minute=0, id="creatine_check", **common
