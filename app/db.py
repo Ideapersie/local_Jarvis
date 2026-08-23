@@ -71,6 +71,26 @@ class Skill(SQLModel, table=True):
     last_touched: date | None = None
 
 
+class Triage(SQLModel, table=True):
+    """One classified email.
+
+    Keyed on the Gmail message id so a re-run updates rather than duplicates,
+    and `handled` is what stops the panel resurfacing a thread you already dealt
+    with.
+    """
+
+    id: int | None = Field(default=None, primary_key=True)
+    message_id: str = Field(index=True, unique=True)
+    thread_id: str
+    sender: str
+    sender_email: str
+    subject: str
+    category: str  # reply_needed | fyi | ignore | linkedin | whatsapp
+    why: str | None = None  # one line, only generated for reply_needed
+    handled: bool = False
+    seen_at: datetime = Field(index=True)
+
+
 class Reminder(SQLModel, table=True):
     """A nudge the app decided to send.
 
