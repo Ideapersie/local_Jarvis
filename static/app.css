@@ -529,6 +529,220 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   *, *::before, *::after { transition-duration: 0.01ms !important; }
 }
 
+/* ---------- career ----------
+ * Grouped by stage rather than kanban. Seven stages as columns would be ~180px
+ * each and would need drag-and-drop, meaning client-side state - the one thing
+ * the rest of this app deliberately avoids.
+ */
+
+.career-main {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.career-grid {
+  min-height: 0;
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 4fr);
+  gap: var(--gap);
+}
+
+.title-count {
+  float: right;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  letter-spacing: 0;
+  text-transform: none;
+  color: #4d4d54;
+}
+
+.stage-group { margin-bottom: 0.9rem; }
+
+.stage-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--hair);
+  margin-bottom: 0.3rem;
+}
+
+.stage-name {
+  font-size: 0.625rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #8a8a91;
+}
+
+.stage-count {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.625rem;
+  color: #4d4d54;
+}
+
+/* Rejected is history, not pipeline. Dimmed so it does not compete. */
+.stage-group-closed { opacity: 0.45; }
+.stage-group-closed:hover { opacity: 0.8; }
+
+.app-row { padding: 0.4rem 0; }
+.app-row + .app-row { border-top: 1px solid var(--hair); }
+
+.app-main {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.app-company {
+  font-size: 0.8125rem;
+  color: #e5e5e7;
+  white-space: nowrap;
+}
+
+.app-role {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.75rem;
+  color: #8a8a91;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-date {
+  flex: none;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.6875rem;
+  color: #6b6b70;
+}
+.app-date-soon { color: var(--amber); }
+/* A date that has passed is usually a stage you forgot to move on, not a
+   deadline you missed - either way it needs to stand out. */
+.app-date-past { color: #f85149; }
+
+.app-notes-count {
+  flex: none;
+  min-width: 1.1rem;
+  height: 1.1rem;
+  padding: 0 0.25rem;
+  border-radius: 9999px;
+  background: rgba(245, 165, 36, 0.16);
+  color: var(--amber);
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.625rem;
+  text-align: center;
+  line-height: 1.1rem;
+}
+
+.app-controls {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.btn-prep {
+  padding: 0.2rem 0.5rem;
+  border-radius: 0.25rem;
+  background: rgba(245, 165, 36, 0.14);
+  color: var(--amber);
+  font-size: 0.625rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.btn-prep:hover { background: rgba(245, 165, 36, 0.26); }
+
+.app-notes {
+  margin: 0.3rem 0 0 1rem;
+  padding-left: 0.6rem;
+  border-left: 1px solid var(--hair);
+}
+
+.note-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.18rem 0;
+}
+
+.note-kind {
+  flex: none;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.5625rem;
+  letter-spacing: 0.04em;
+  color: #5c5c62;
+  min-width: 5.5rem;
+}
+
+.note-body {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.75rem;
+  color: #c8c8cd;
+}
+.note-body-done { color: #5c5c62; text-decoration: line-through; }
+
+/* Hidden until the row is hovered or focused - one of these per application
+   would otherwise triple the visual weight of the list. */
+.note-form {
+  display: none;
+  gap: 0.35rem;
+  margin: 0.3rem 0 0 1.6rem;
+}
+.app-row:hover .note-form,
+.app-row:focus-within .note-form { display: flex; }
+
+.add-form-wrap { flex-wrap: wrap; }
+
+/* ---------- skills ---------- */
+
+.skill-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.3rem 0;
+}
+.skill-row + .skill-row { border-top: 1px solid var(--hair); }
+
+.skill-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.8125rem;
+  color: #d4d4d8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.skill-dots { flex: none; display: flex; gap: 3px; }
+
+.dot {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 9999px;
+  border: 1px solid #3a3a40;
+  background: transparent;
+}
+.dot-on { background: var(--amber); border-color: var(--amber); }
+/* Hollow but outlined: the distance still to cover. */
+.dot-target { border-color: var(--amber); opacity: 0.55; }
+.dot:hover { transform: scale(1.25); }
+.dot:focus-visible { outline: 2px solid rgba(245, 165, 36, 0.6); outline-offset: 1px; }
+
+.skill-gap {
+  flex: none;
+  width: 1.4rem;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.625rem;
+  color: #8a5f16;
+  text-align: right;
+}
+
+@media (max-width: 1100px) {
+  .career-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
 /* ---------- brief panel ---------- */
 
 .brief-head {
@@ -584,6 +798,53 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   display: none;
 }
 .htmx-request .brief-spin, .brief-spin.htmx-request { display: inline; }
+
+/* ---------- inbox, inside the brief panel ---------- */
+
+.inbox-block {
+  flex: none;
+  margin-top: 0.6rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--hair);
+}
+
+.inbox-head {
+  font-size: 0.5625rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #6b6b70;
+  margin-bottom: 0.3rem;
+}
+
+.inbox-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  padding: 0.25rem 0;
+}
+.inbox-row + .inbox-row { border-top: 1px solid var(--hair); }
+
+.inbox-text { flex: 1; min-width: 0; }
+
+.inbox-sender {
+  font-size: 0.75rem;
+  color: #e5e5e7;
+  margin-right: 0.35rem;
+}
+
+.inbox-subject {
+  font-size: 0.75rem;
+  color: #8a8a91;
+}
+
+/* The one-line "what does this want" - the part that saves opening the mail. */
+.inbox-why {
+  display: block;
+  font-size: 0.6875rem;
+  line-height: 1.4;
+  color: var(--amber);
+  margin-top: 0.1rem;
+}
 
 .urgent-dismiss {
   margin-top: 0.5rem;

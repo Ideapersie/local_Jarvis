@@ -11,7 +11,8 @@ anything it can act on.
 
 from __future__ import annotations
 
-from datetime import timedelta
+import logging
+from datetime import date, timedelta
 from typing import Any
 
 from claude_agent_sdk import ToolAnnotations, create_sdk_mcp_server, tool
@@ -19,6 +20,8 @@ from sqlmodel import Session, select
 
 from app import config, db
 from app.services import streaks
+
+log = logging.getLogger("jarvis.agent_tools")
 
 READ_ONLY = ToolAnnotations(readOnlyHint=True, openWorldHint=False)
 
@@ -232,7 +235,194 @@ async def get_skills(args: dict[str, Any]) -> dict[str, Any]:
     return _text("Skills:\n" + "\n".join(lines))
 
 
-ALL_TOOLS = [
+# --- career writes ----------------------------------------------------------
+#
+# The first DB writes the agent gets. Scoped to the career tables on purpose:
+# updating a stage right after a call is the moment you are least likely to open
+# a form, and a wrong value there is obvious and one click to fix. Habits and
+# tasks stay read-only - a fabricated habit log would silently corrupt a streak,
+# which is the one number in this app that must be trustworthy.
+#
+# Every write logs what changed, so a bad one is findable after the fact.
+
+WRITE_ONLY = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
+
+STAGES = ["applied", "oa", "phone", "technical", "final", "offer", "rejected"]
+PREP_KINDS = ["topic_to_learn", "weakness", "question_asked", "outcome"]
+
+
+@tool(
+    "set_application_stage",
+    "Move an application to a new stage. Use the numeric id from "
+    "get_applications. Valid stages: " + ", ".join(STAGES) + ". Only call this "
+    "when the user states the stage changed - never infer it from context.",
+    {"application_id": int, "stage": str},
+    annotations=WRITE_ONLY,
+)
+async def set_application_stage(args: dict[str, Any]) -> dict[str, Any]:
+    stage = str(args["stage"]).strip().lower()
+    if stage not in STAGES:
+        return _error(f"Unknown stage {stage!r}. Valid: {', '.join(STAGES)}")
+
+    with _session() as s:
+        app = s.get(db.Application, int(args["application_id"]))
+        if app is None:
+            return _error(f"No application with id {args['application_id']}.")
+
+        previous = app.stage
+        app.stage = stage
+        # A rejection has no next date; leaving one keeps the application in the
+        # brief's fourteen-day window forever.
+        if stage == "rejected":
+            app.next_date = None
+        app.updated_at = config.now()
+        s.add(app)
+        s.commit()
+        log.info(
+            "agent write: application %s %s -> %s", app.id, previous, stage
+        )
+        return _text(
+            f"{app.company} - {app.role} moved from {previous} to {stage}."
+        )
+
+
+@tool(
+    "set_application_date",
+    "Set or clear the next date on an application (an interview or deadline). "
+    "Pass date as YYYY-MM-DD, or an empty string to clear it.",
+    {"application_id": int, "date": str},
+    annotations=WRITE_ONLY,
+)
+async def set_application_date(args: dict[str, Any]) -> dict[str, Any]:
+    raw = str(args.get("date", "")).strip()
+    parsed: date | None = None
+    if raw:
+        try:
+            parsed = date.fromisoformat(raw)
+        except ValueError:
+            return _error(f"Could not read {raw!r} as a date. Use YYYY-MM-DD.")
+
+    with _session() as s:
+        app = s.get(db.Application, int(args["application_id"]))
+        if app is None:
+            return _error(f"No application with id {args['application_id']}.")
+        app.next_date = parsed
+        app.updated_at = config.now()
+        s.add(app)
+        s.commit()
+        log.info("agent write: application %s date -> %s", app.id, parsed)
+        return _text(
+            f"{app.company} next date "
+            + (f"set to {parsed.isoformat()}." if parsed else "cleared.")
+        )
+
+
+@tool(
+    "add_prep_note",
+    "Record something to prepare, a weakness that surfaced, a question that was "
+    "asked, or an outcome, against one application. kind must be one of: "
+    + ", ".join(PREP_KINDS)
+    + ". Write what the user actually said, not a paraphrase that adds detail.",
+    {"application_id": int, "kind": str, "body": str},
+    annotations=WRITE_ONLY,
+)
+async def add_prep_note(args: dict[str, Any]) -> dict[str, Any]:
+    kind = str(args["kind"]).strip().lower()
+    if kind not in PREP_KINDS:
+        return _error(f"Unknown kind {kind!r}. Valid: {', '.join(PREP_KINDS)}")
+
+    body = str(args["body"]).strip()
+    if not body:
+        return _error("Prep note body is empty.")
+
+    with _session() as s:
+        app = s.get(db.Application, int(args["application_id"]))
+        if app is None:
+            return _error(f"No application with id {args['application_id']}.")
+        s.add(
+            db.PrepNote(
+                application_id=app.id,
+                kind=kind,
+                body=body,
+                created_at=config.now(),
+            )
+        )
+        s.commit()
+        log.info("agent write: prep note [%s] on application %s", kind, app.id)
+        return _text(f"Noted against {app.company}: [{kind}] {body}")
+
+
+@tool(
+    "resolve_prep_note",
+    "Mark a prep note resolved once it has been dealt with. Pass the note id "
+    "from get_prep_notes. Pass resolved=false to reopen it.",
+    {"note_id": int},
+    annotations=WRITE_ONLY,
+)
+async def resolve_prep_note(args: dict[str, Any]) -> dict[str, Any]:
+    resolved = bool(args.get("resolved", True))
+    with _session() as s:
+        note = s.get(db.PrepNote, int(args["note_id"]))
+        if note is None:
+            return _error(f"No prep note with id {args['note_id']}.")
+        note.resolved = resolved
+        s.add(note)
+        s.commit()
+        log.info("agent write: prep note %s resolved=%s", note.id, resolved)
+        return _text(
+            f"Note {'resolved' if resolved else 'reopened'}: {note.body}"
+        )
+
+
+@tool(
+    "set_skill_confidence",
+    "Update your confidence in a skill on a 1-5 scale. Only call this when the "
+    "user says their confidence changed, or after an interview where it clearly "
+    "did. Creates the skill if it does not exist yet, in which case also pass "
+    "target (defaults to 3).",
+    {"name": str, "confidence": int},
+    annotations=WRITE_ONLY,
+)
+async def set_skill_confidence(args: dict[str, Any]) -> dict[str, Any]:
+    name = str(args["name"]).strip()
+    if not name:
+        return _error("Skill name is empty.")
+
+    confidence = max(1, min(5, int(args["confidence"])))
+    target = max(1, min(5, int(args.get("target", 3))))
+
+    with _session() as s:
+        existing = next(
+            (
+                sk
+                for sk in s.exec(select(db.Skill)).all()
+                if sk.name.strip().lower() == name.lower()
+            ),
+            None,
+        )
+        if existing is None:
+            s.add(
+                db.Skill(
+                    name=name,
+                    confidence=confidence,
+                    target=target,
+                    last_touched=config.today(),
+                )
+            )
+            s.commit()
+            log.info("agent write: skill %r created at %s", name, confidence)
+            return _text(f"Added {name} at {confidence}/5, target {target}.")
+
+        previous = existing.confidence
+        existing.confidence = confidence
+        existing.last_touched = config.today()
+        s.add(existing)
+        s.commit()
+        log.info("agent write: skill %r %s -> %s", name, previous, confidence)
+        return _text(f"{name}: {previous}/5 -> {confidence}/5.")
+
+
+READ_TOOLS = [
     get_habits,
     get_habit_history,
     get_tasks,
@@ -240,6 +430,24 @@ ALL_TOOLS = [
     get_prep_notes,
     get_skills,
 ]
+
+# Career tables only. Habits and tasks stay read-only: a fabricated habit log
+# corrupts a streak silently, and streaks are the one number here that has to be
+# trustworthy.
+#
+# Named for the tables rather than "write tools" because app/agent.py already
+# uses WRITE_TOOLS for filesystem tools, and confusing the two would mean
+# thinking the path confinement covers these. It does not - these are database
+# writes and are gated by scope, not by path.
+CAREER_WRITE_TOOLS = [
+    set_application_stage,
+    set_application_date,
+    add_prep_note,
+    resolve_prep_note,
+    set_skill_confidence,
+]
+
+ALL_TOOLS = [*READ_TOOLS, *CAREER_WRITE_TOOLS]
 
 # Key in mcp_servers becomes the {server} in mcp__{server}__{tool}.
 jarvis_server = create_sdk_mcp_server(name="jarvis", version="1.0.0", tools=ALL_TOOLS)

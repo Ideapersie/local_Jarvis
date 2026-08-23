@@ -10,11 +10,12 @@
       "Read",
       "Glob",
       "Grep",
+      "WebSearch",
+      "WebFetch",
       "mcp__jarvis__*"
     ],
     "deny": [
       "Bash",
-      "WebFetch",
       "Read(.env)",
       "Read(.env.*)",
       "Read(token.json)",

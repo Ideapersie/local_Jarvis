@@ -48,7 +48,8 @@ PLAN = os.getenv("PLAN", "pro")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
-WEATHER_API_KEY = os.getenv("WEATHER_API_KEY")
+# No weather key: Open-Meteo is keyless and gives hourly data, which is what the
+# two-lookup pattern needs. The spec's WEATHER_API_KEY is deliberately unused.
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 TRADING212_API_KEY = os.getenv("TRADING212_API_KEY")
