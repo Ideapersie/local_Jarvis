@@ -211,5 +211,10 @@ __marimo__/
 logs/
 jarvis.db
 jarvis.db-journal
+# Google OAuth: credentials.json holds the client secret, token.json the
+# refresh token. Either in a commit is a credential leak.
+credentials.json
 token.json
 data/instruments.json
+
+IDEA_CV_Aug_2026.pdf
