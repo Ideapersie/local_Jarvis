@@ -16,7 +16,13 @@ router = APIRouter(prefix="/tasks", tags=["tasks"])
 
 
 def open_first(session: Session) -> list[Task]:
-    return list(session.exec(select(Task).order_by(Task.done, Task.id.desc())).all())
+    return list(
+        session.exec(
+            select(Task).order_by(
+                Task.done, Task.due.is_(None), Task.due, Task.id.desc()
+            )
+        ).all()
+    )
 
 
 def render_panel(request: Request, session: Session) -> HTMLResponse:
