@@ -11,7 +11,7 @@ from sqlmodel import Session
 from app import config, jobs
 from app.deps import get_session, templates
 from app.integrations import notify
-from app.services import brief_builder
+from app.services import brief_builder, triage
 
 log = logging.getLogger("jarvis.brief_router")
 
@@ -38,6 +38,10 @@ def build_context(session: Session) -> dict:
         "telegram": notify.telegram_configured(),
         "last_brief": previous,
         "missed": row is None and jobs.catch_up_due(),
+        # Email folds into this panel rather than getting its own - the sketch
+        # has no inbox panel, and the compact grid is already full.
+        "inbox": triage.pending(session, limit=5) if triage.available() else [],
+        "email_connected": triage.available(),
     }
 
 
@@ -67,10 +71,31 @@ async def trigger(
     job_id: str, request: Request, session: Session = Depends(get_session)
 ):
     """Fire a scheduled job on demand, so 06:30 behaviour is testable at 14:00."""
-    if job_id not in {"morning_brief", "creatine_check", "weekly_reflection"}:
+    if job_id not in {
+        "inbox_triage",
+        "morning_brief",
+        "creatine_check",
+        "weekly_reflection",
+    }:
         raise HTTPException(status_code=404, detail="no such job")
     await jobs.run_now(job_id)
     session.expire_all()
+    return render(request, session)
+
+
+@router.post("/inbox/{triage_id}/handled", response_class=HTMLResponse)
+def mark_handled(
+    triage_id: int, request: Request, session: Session = Depends(get_session)
+):
+    """Dismiss one thread. It must not resurface on the next triage run."""
+    from app import db
+
+    row = session.get(db.Triage, triage_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="no such triage row")
+    row.handled = True
+    session.add(row)
+    session.commit()
     return render(request, session)
 
 
