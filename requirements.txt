@@ -12,6 +12,11 @@ claude-agent-sdk>=0.2.134
 # Quick tier: single-shot classification, no agent loop
 anthropic>=0.121.0
 
+# Google: Gmail + Calendar, desktop OAuth with a cached token
+google-api-python-client>=2.150
+google-auth-oauthlib>=1.2
+google-auth-httplib2>=0.2
+
 # dev
 pytest>=8.3
 pytest-asyncio>=0.24
