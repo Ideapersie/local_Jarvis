@@ -29,6 +29,14 @@ BRIEF_HOUR = 6
 BRIEF_MINUTE = 30
 
 
+def inbox_triage() -> None:
+    """06:25, five minutes ahead of the brief so it reads fresh results."""
+    from app.services import triage
+
+    counts = triage.run()
+    log.info("06:25 job: triage %s", counts or "(nothing)")
+
+
 async def morning_brief() -> None:
     log.info("06:30 job: building morning brief")
     row = await brief_builder.build()
@@ -149,6 +157,9 @@ def start() -> AsyncIOScheduler:
     common = dict(replace_existing=True, max_instances=1, coalesce=True)
 
     _scheduler.add_job(
+        inbox_triage, "cron", hour=6, minute=25, id="inbox_triage", **common
+    )
+    _scheduler.add_job(
         morning_brief,
         "cron",
         hour=BRIEF_HOUR,
@@ -203,6 +214,7 @@ def jobs_status() -> list[dict]:
 async def run_now(job_id: str) -> None:
     """Fire a job immediately, for testing. Sync jobs go to a thread."""
     targets = {
+        "inbox_triage": inbox_triage,
         "morning_brief": morning_brief,
         "creatine_check": creatine_check,
         "weekly_reflection": weekly_reflection,

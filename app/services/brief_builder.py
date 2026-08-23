@@ -15,8 +15,9 @@ from claude_agent_sdk import AssistantMessage, ResultMessage, TextBlock
 from sqlmodel import Session, select
 
 from app import config, db
+from app.integrations import gcal
 from app.integrations import weather as weather_mod
-from app.services import costs, streaks
+from app.services import costs, streaks, triage
 
 log = logging.getLogger("jarvis.brief")
 
@@ -68,9 +69,48 @@ def gather(day: date | None = None) -> dict:
             ).all()
         ]
 
-    fc = weather_mod.fetch(day=day)
+    # Calendar first: the day's events decide which location the weather is for
+    # and which hours are worth bracketing.
+    events = gcal.upcoming(days=7, start=day) if gcal.available() else []
+    todays = gcal.today(events, day)
+    out["calendar_connected"] = gcal.available()
+    out["events_today"] = [str(e) for e in todays]
+    out["events_week"] = [
+        f"{e.day.strftime('%a %d %b')}: {e}" for e in events if e.day != day
+    ][:8]
+
+    # Location can be overridden by an event that names the other city.
+    location_hint = next(
+        (e.location for e in todays if e.location and weather_mod.resolve_location(e.location) != weather_mod.resolve_location(None)),
+        None,
+    )
+    fc = weather_mod.fetch(location=location_hint, day=day)
     out["weather"] = fc.summary() if fc else None
     out["location"] = fc.location if fc else None
+
+    # The spec's two-lookup pattern, now that there are events to key off:
+    # one hour before and two hours after, passed as plain numbers. The model is
+    # never asked to reason about a time window from a raw forecast blob.
+    brackets = []
+    if fc:
+        for event in todays:
+            if not event.outdoors or event.hour is None:
+                continue
+            before, after = fc.around(event.hour)
+            if before and after:
+                brackets.append(
+                    f"{event.summary} at {event.hour:02d}:00 - "
+                    f"before: {before}; after: {after}"
+                )
+    out["weather_brackets"] = brackets
+
+    with Session(db.engine) as s:
+        out["triage"] = triage.summary(s)
+        out["reply_needed"] = [
+            {"sender": t.sender, "subject": t.subject, "why": t.why}
+            for t in triage.pending(s, limit=5)
+        ]
+    out["email_connected"] = triage.available()
 
     # Recent briefs let the agent spot repetition. Names only - it greps the
     # bodies itself if it wants them, rather than us paying to inline seven days.
@@ -122,14 +162,48 @@ def render_facts(facts: dict) -> str:
     if facts["recent_briefs"]:
         lines.append("RECENT BRIEFS: " + ", ".join(facts["recent_briefs"]))
 
-    # "Not connected" is not the same as "empty", and a brief that says
-    # "nothing on the calendar" when no calendar exists reads as a checked
-    # state. Be explicit about the difference.
-    lines.append(
-        "\nCALENDAR AND EMAIL: no integration exists yet. Write as if these "
-        "sources do not exist - do not say the calendar is clear or that there "
-        "is no email, because that would imply you checked."
-    )
+    # "Not connected" and "connected but empty" mean different things, and the
+    # brief must not blur them. Saying "nothing on the calendar" when there is
+    # no calendar reads as a checked state and is a fabricated observation.
+    if facts.get("calendar_connected"):
+        if facts["events_today"]:
+            lines.append("TODAY'S EVENTS:")
+            lines.extend(f"  {e}" for e in facts["events_today"])
+        else:
+            lines.append("TODAY'S EVENTS: none. The calendar was checked and is clear.")
+        if facts["events_week"]:
+            lines.append("LATER THIS WEEK:")
+            lines.extend(f"  {e}" for e in facts["events_week"])
+    else:
+        lines.append(
+            "CALENDAR: not connected. Do not mention meetings or say the day is "
+            "clear - that would imply you checked."
+        )
+
+    if facts.get("weather_brackets"):
+        lines.append("WEATHER AROUND OUTDOOR EVENTS:")
+        lines.extend(f"  {b}" for b in facts["weather_brackets"])
+
+    if facts.get("email_connected"):
+        counts = facts.get("triage") or {}
+        if counts:
+            lines.append(
+                "INBOX (unhandled): "
+                + ", ".join(f"{v} {k}" for k, v in sorted(counts.items()))
+            )
+        else:
+            lines.append("INBOX: nothing unhandled.")
+        if facts.get("reply_needed"):
+            lines.append("NEEDS A REPLY:")
+            for item in facts["reply_needed"]:
+                why = f" - {item['why']}" if item["why"] else ""
+                lines.append(f"  {item['sender']}: {item['subject']}{why}")
+    else:
+        lines.append(
+            "EMAIL: not connected. Do not mention email or say the inbox is "
+            "clear - that would imply you checked."
+        )
+
     return "\n".join(lines)
 
 

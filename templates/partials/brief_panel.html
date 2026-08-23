@@ -38,6 +38,27 @@
   </div>
 {% endif %}
 
+{% if inbox %}
+  <div class="inbox-block">
+    <div class="inbox-head">Needs a reply</div>
+    {% for t in inbox %}
+      <div class="inbox-row group">
+        <div class="inbox-text">
+          <span class="inbox-sender">{{ t.sender }}</span>
+          <span class="inbox-subject">{{ t.subject }}</span>
+          {% if t.why %}<span class="inbox-why">{{ t.why }}</span>{% endif %}
+        </div>
+        <button type="button"
+                hx-post="/brief/inbox/{{ t.id }}/handled"
+                hx-target="#brief-panel"
+                hx-swap="innerHTML"
+                aria-label="Mark handled"
+                class="row-x">&times;</button>
+      </div>
+    {% endfor %}
+  </div>
+{% endif %}
+
 <div class="brief-actions">
   <button type="button"
           hx-post="/brief/run"
@@ -46,6 +67,14 @@
           hx-indicator="#brief-spin"
           hx-confirm="Generate today's brief? This costs one agent turn (~$0.15)."
           class="btn-add">Run brief</button>
+  {% if email_connected %}
+    <button type="button"
+            hx-post="/brief/job/inbox_triage"
+            hx-target="#brief-panel"
+            hx-swap="innerHTML"
+            hx-indicator="#brief-spin"
+            class="btn-ghost">Triage inbox</button>
+  {% endif %}
   <button type="button"
           hx-post="/brief/job/creatine_check"
           hx-target="#brief-panel"
