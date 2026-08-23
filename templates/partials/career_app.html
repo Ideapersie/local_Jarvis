@@ -1,0 +1,92 @@
+<div class="app-row group" id="app-{{ a.id }}">
+
+  <div class="app-main">
+    <span class="app-company">{{ a.company }}</span>
+    <span class="app-role">{{ a.role }}</span>
+
+    {% if a.next_date %}
+      <span class="app-date {{ 'app-date-soon' if a.days_away is not none and a.days_away <= 7 }}
+                   {{- ' app-date-past' if a.overdue }}">
+        {{ a.next_date.strftime('%d %b') }}
+        {%- if a.overdue %} (passed)
+        {%- elif a.days_away == 0 %} (today)
+        {%- elif a.days_away == 1 %} (tomorrow)
+        {%- elif a.days_away is not none %} ({{ a.days_away }}d){% endif %}
+      </span>
+    {% endif %}
+
+    {% if a.open_notes %}
+      <span class="app-notes-count" title="{{ a.open_notes }} unresolved prep notes">{{ a.open_notes }}</span>
+    {% endif %}
+
+    <span class="app-controls">
+      {% if a.prep_ready %}
+        <button type="button"
+                hx-post="/career/applications/{{ a.id }}/prep"
+                hx-target="#career-body"
+                hx-swap="innerHTML"
+                hx-indicator="#prep-spin-{{ a.id }}"
+                hx-confirm="Build a prep plan for {{ a.company }}? Costs one agent turn (~$0.15) and searches the web."
+                class="btn-prep">Prep</button>
+        <span id="prep-spin-{{ a.id }}" class="htmx-indicator brief-spin">working...</span>
+      {% endif %}
+
+      <select class="fld fld-sm"
+              name="stage"
+              hx-post="/career/applications/{{ a.id }}/stage"
+              hx-target="#career-body"
+              hx-swap="innerHTML"
+              aria-label="Stage for {{ a.company }}">
+        {% for s in stages %}
+          <option value="{{ s }}" {{ 'selected' if s == a.stage }}>{{ stage_labels[s] }}</option>
+        {% endfor %}
+      </select>
+
+      <button type="button"
+              hx-delete="/career/applications/{{ a.id }}"
+              hx-target="#career-body"
+              hx-swap="innerHTML"
+              hx-confirm="Delete {{ a.company }} and its prep notes? This cannot be undone."
+              aria-label="Delete {{ a.company }}"
+              class="row-x">&times;</button>
+    </span>
+  </div>
+
+  {% if a.notes %}
+    <div class="app-notes">
+      {% for n in a.notes %}
+        <div class="note-row group">
+          <button type="button"
+                  hx-post="/career/notes/{{ n.id }}/toggle"
+                  hx-target="#career-body"
+                  hx-swap="innerHTML"
+                  aria-pressed="{{ 'true' if n.resolved else 'false' }}"
+                  aria-label="Toggle note"
+                  class="task-dot {{ 'task-dot-on' if n.resolved }}"></button>
+          <span class="note-kind">{{ n.kind.replace('_', ' ') }}</span>
+          <span class="note-body {{ 'note-body-done' if n.resolved }}">{{ n.body }}</span>
+          <button type="button"
+                  hx-delete="/career/notes/{{ n.id }}"
+                  hx-target="#career-body"
+                  hx-swap="innerHTML"
+                  aria-label="Delete note"
+                  class="row-x">&times;</button>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <form hx-post="/career/applications/{{ a.id }}/notes"
+        hx-target="#career-body"
+        hx-swap="innerHTML"
+        hx-on::after-request="this.reset()"
+        class="note-form">
+    <select name="kind" class="fld fld-sm">
+      {% for k in prep_kinds %}
+        <option value="{{ k }}">{{ k.replace('_', ' ') }}</option>
+      {% endfor %}
+    </select>
+    <input name="body" placeholder="prep note" required class="fld flex-1 min-w-0">
+    <button type="submit" class="btn-add">Note</button>
+  </form>
+</div>

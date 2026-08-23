@@ -15,7 +15,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from app import agent, config, jobs
 from app.db import create_db_and_tables, engine, seed_habits
 from app.deps import get_session, templates
-from app.routers import brief, chat, habits, tasks
+from app.routers import brief, career, chat, habits, tasks
 from app.security import ALLOWED_HOSTS, block_cross_site
 from app.services import costs
 
@@ -59,6 +59,7 @@ app.include_router(habits.router)
 app.include_router(tasks.router)
 app.include_router(chat.router)
 app.include_router(brief.router)
+app.include_router(career.router)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -83,6 +84,7 @@ def index(request: Request, session: Session = Depends(get_session)):
 
 
 @app.get("/career", response_class=HTMLResponse)
-def career(request: Request):
-    """Placeholder so the nav link resolves. Real panel lands Day 3."""
-    return templates.TemplateResponse(request, "career.html", {})
+def career_page(request: Request, session: Session = Depends(get_session)):
+    return templates.TemplateResponse(
+        request, "career.html", career.build_context(session)
+    )

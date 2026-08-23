@@ -7,6 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/htmx.org@2.0.4"></script>
   <link rel="stylesheet" href="/static/app.css">
 </head>
 <body>
@@ -19,16 +20,8 @@
     </nav>
   </header>
 
-  <main class="grid-2col">
-    <section class="panel" style="grid-column: 1 / -1;">
-      <h2 class="panel-title">Applications</h2>
-      <div class="panel-body">
-        <p class="empty">
-          Career tracker arrives on Day 3 — applications by stage, prep notes,
-          and skills against target.
-        </p>
-      </div>
-    </section>
+  <main id="career-body" class="career-main">
+    {% include "partials/career_body.html" %}
   </main>
 </div>
 </body>
