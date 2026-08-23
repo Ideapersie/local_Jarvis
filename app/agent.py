@@ -145,7 +145,10 @@ def build_options(auth: str | None = None) -> ClaudeAgentOptions:
         # warns about exactly this shadowing. Leaving them out makes writes fall
         # through to the callback, which is the only thing keeping the agent
         # inside brain/ and briefs/. Reads are safe to auto-approve.
-        allowed_tools=["Read", "Glob", "Grep", *TOOL_NAMES],
+        # WebSearch is here for the interview-prep skill, which researches a
+        # firm's actual interview process. Auto-approving it is safe: it reads
+        # public pages and cannot change anything.
+        allowed_tools=["Read", "Glob", "Grep", "WebSearch", "WebFetch", *TOOL_NAMES],
         # Bare name removes Bash from context entirely, so the agent never
         # wastes a turn attempting it. It arrives on Day 3 with the brief.
         disallowed_tools=["Bash"],
