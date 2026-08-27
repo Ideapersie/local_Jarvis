@@ -15,9 +15,6 @@
       "mcp__jarvis__*"
     ],
     "deny": [
-      "Bash",
-      "Read(.env)",
-      "Read(.env.*)",
       "Read(token.json)",
       "Read(credentials.json)"
     ]
