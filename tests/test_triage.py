@@ -6,7 +6,8 @@ parsing and decision logic rather than the APIs.
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
+from typing import ClassVar
 
 import pytest
 from sqlmodel import Session, select
@@ -76,14 +77,17 @@ def test_hallucinated_ids_are_dropped(monkeypatch):
 
     class FakeBlock:
         type = "text"
-        text = '{"items": [{"id": "real", "category": "fyi"}, {"id": "ghost", "category": "reply_needed"}]}'
+        text = (
+            '{"items": [{"id": "real", "category": "fyi"}, '
+            '{"id": "ghost", "category": "reply_needed"}]}'
+        )
 
     class FakeUsage:
         input_tokens = 10
         output_tokens = 5
 
     class FakeResp:
-        content = [FakeBlock()]
+        content: ClassVar = [FakeBlock()]
         usage = FakeUsage()
 
     class FakeClient:
@@ -107,7 +111,7 @@ def test_unknown_category_is_dropped(monkeypatch):
         output_tokens = 5
 
     class FakeResp:
-        content = [FakeBlock()]
+        content: ClassVar = [FakeBlock()]
         usage = FakeUsage()
 
     class FakeClient:
@@ -179,7 +183,7 @@ def test_all_day_events_have_no_hour():
 def test_timed_events_are_naive_local():
     """Everything else in this app stores naive local time; a tz-aware event
     would reintroduce the comparison bug fixed on day one."""
-    stamp, day, all_day = gcal._parse({"dateTime": "2026-08-14T20:00:00+07:00"})
+    stamp, _day, all_day = gcal._parse({"dateTime": "2026-08-14T20:00:00+07:00"})
     assert all_day is False
     assert stamp.tzinfo is None and stamp.hour == 20
 

@@ -134,7 +134,10 @@ def explain(message: gmail.Message) -> str | None:
             messages=[
                 {
                     "role": "user",
-                    "content": f"From: {message.sender}\nSubject: {message.subject}\n\n{body}",
+                    "content": (
+                        f"From: {message.sender}\n"
+                        f"Subject: {message.subject}\n\n{body}"
+                    ),
                 }
             ],
         )
