@@ -64,6 +64,7 @@ def gather(day: date | None = None) -> dict:
             for a in s.exec(
                 select(db.Application)
                 .where(db.Application.next_date != None)
+                .where(db.Application.next_date >= day)
                 .where(db.Application.next_date <= horizon)
                 .order_by(db.Application.next_date)
             ).all()
@@ -71,9 +72,14 @@ def gather(day: date | None = None) -> dict:
 
     # Calendar first: the day's events decide which location the weather is for
     # and which hours are worth bracketing.
-    events = gcal.upcoming(days=7, start=day) if gcal.available() else []
+    fetched = gcal.upcoming(days=7, start=day) if gcal.available() else None
+    events = fetched or []
     todays = gcal.today(events, day)
-    out["calendar_connected"] = gcal.available()
+    # "Connected" has to mean the call came back, not that credentials.json is
+    # on disk. gcal.available() only checks the latter, so a revoked token or a
+    # missing client library used to render as "the calendar was checked and is
+    # clear" - a fact nobody established.
+    out["calendar_connected"] = fetched is not None
     out["events_today"] = [str(e) for e in todays]
     out["events_week"] = [
         f"{e.day.strftime('%a %d %b')}: {e}" for e in events if e.day != day
@@ -81,7 +87,13 @@ def gather(day: date | None = None) -> dict:
 
     # Location can be overridden by an event that names the other city.
     location_hint = next(
-        (e.location for e in todays if e.location and weather_mod.resolve_location(e.location) != weather_mod.resolve_location(None)),
+        (
+            e.location
+            for e in todays
+            if e.location
+            and weather_mod.resolve_location(e.location)
+            != weather_mod.resolve_location(None)
+        ),
         None,
     )
     fc = weather_mod.fetch(location=location_hint, day=day)
@@ -265,7 +277,11 @@ async def build(day: date | None = None) -> db.Brief | None:
         return None
 
     body = path.read_text(encoding="utf-8")
-    return _persist(day, path, "".join(summary_parts).strip(), _extract_urgent(body))
+    # Only the final block. Joining every TextBlock concatenated the agent's
+    # own narration ("Now invoking the brief-writer skill...") onto the answer,
+    # and that string is what the dashboard panel renders.
+    summary = summary_parts[-1].strip() if summary_parts else ""
+    return _persist(day, path, summary, _extract_urgent(body))
 
 
 def _extract_urgent(body: str) -> str | None:
