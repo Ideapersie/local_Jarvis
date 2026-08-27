@@ -5,12 +5,16 @@ Model names live here so no other module hardcodes a model string.
 
 from __future__ import annotations
 
+import logging
 import os
 from datetime import date, datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+import tzlocal
 from dotenv import load_dotenv
+
+log = logging.getLogger("jarvis.config")
 
 ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(ROOT / ".env")
@@ -58,8 +62,41 @@ TRADING212_BASE_URL = os.getenv(
     "TRADING212_BASE_URL", "https://demo.trading212.com/api/v0"
 )
 
-DEFAULT_LOCATION = os.getenv("DEFAULT_LOCATION", "bangkok")
-TIMEZONE = os.getenv("TZ", "Asia/Bangkok")
+DEFAULT_LOCATION = os.getenv("DEFAULT_LOCATION", "")
+
+
+def resolve_timezone(env_tz: str | None, os_tz: str | None) -> str:
+    """A filled TZ in .env wins; blank means follow the machine's own clock.
+
+    Blank is the intended setting. Moving between London and Bangkok changes
+    the laptop's zone and this follows it with no edit and no network call -
+    nothing about where you are leaves the machine. Fill TZ only to pin a zone
+    the laptop is wrong about.
+
+    A zone ZoneInfo cannot load is dropped rather than trusted, because it would
+    otherwise raise on the first timestamp the app writes.
+    """
+    for candidate in (env_tz, os_tz):
+        if not candidate:
+            continue
+        try:
+            ZoneInfo(candidate)
+        except Exception:
+            log.warning("timezone %r is not loadable, ignoring it", candidate)
+            continue
+        return candidate
+    return "UTC"
+
+
+def _machine_timezone() -> str | None:
+    try:
+        return tzlocal.get_localzone_name()
+    except Exception:
+        log.warning("could not read the machine timezone", exc_info=True)
+        return None
+
+
+TIMEZONE = resolve_timezone(os.getenv("TZ"), _machine_timezone())
 TZ = ZoneInfo(TIMEZONE)
 
 
