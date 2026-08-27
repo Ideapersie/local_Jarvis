@@ -12,8 +12,8 @@ import pytest
 from sqlmodel import Session, select
 
 from app import config, db, jobs
-from app.integrations import notify, weather
-from app.services import brief_builder
+from app.integrations import gcal, notify, weather
+from app.services import brief_builder, triage
 
 TODAY = config.today()
 
@@ -77,6 +77,31 @@ def test_gather_only_looks_ahead_two_weeks(seeded, monkeypatch):
     assert companies == ["Marshall Wace"]
 
 
+def test_past_interviews_are_not_upcoming(seeded, monkeypatch, test_engine):
+    """A date that has already passed must not render as "in -6 days".
+
+    The window was bounded at the top only, so a stale application sat under
+    the "UPCOMING (next 14 days)" heading indefinitely, contradicting it.
+    """
+    monkeypatch.setattr(weather, "fetch", lambda **kw: None)
+    monkeypatch.setattr(gcal, "available", lambda: False)
+    with Session(test_engine) as s:
+        s.add(
+            db.Application(
+                company="Stale Corp",
+                role="Intern",
+                stage="technical",
+                next_date=TODAY - timedelta(days=6),
+                updated_at=datetime.combine(TODAY, datetime.min.time()),
+            )
+        )
+        s.commit()
+
+    rendered = brief_builder.render_facts(brief_builder.gather(TODAY))
+    assert "Stale Corp" not in rendered
+    assert "in -" not in rendered
+
+
 def test_missed_yesterday_is_flagged(seeded, monkeypatch):
     monkeypatch.setattr(weather, "fetch", lambda **kw: None)
     facts = brief_builder.gather(TODAY)
@@ -90,10 +115,33 @@ def test_facts_forbid_inventing_absent_sources(seeded, monkeypatch):
     "No meetings today" when no calendar exists is a fabricated observation.
     """
     monkeypatch.setattr(weather, "fetch", lambda **kw: None)
+    # Stubbed rather than left to the machine: this assertion used to depend on
+    # whether the developer happened to have credentials.json on disk, so it
+    # passed on a clean checkout and failed on a configured one.
+    monkeypatch.setattr(gcal, "available", lambda: False)
     rendered = brief_builder.render_facts(brief_builder.gather(TODAY))
     assert "do not mention weather" in rendered.lower()
-    assert "do not say the calendar is clear" in rendered.lower()
+    assert "CALENDAR: not connected" in rendered
+    assert "checked and is clear" not in rendered
     assert "do not invent interviews" not in rendered  # has a real application
+
+
+def test_a_failed_calendar_fetch_is_not_an_empty_calendar(test_engine, monkeypatch):
+    """Credentials on disk, but the call did not come back.
+
+    The gap this closes: gcal.available() only checks that credentials.json
+    exists, so a revoked token or an uninstalled client library rendered as
+    "the calendar was checked and is clear" - the exact fabrication the
+    not-connected branch was written to prevent.
+    """
+    monkeypatch.setattr(gcal, "available", lambda: True)
+    monkeypatch.setattr(gcal, "upcoming", lambda **kw: None)
+    monkeypatch.setattr(triage, "available", lambda: False)
+    monkeypatch.setattr(weather, "fetch", lambda **kw: None)
+
+    rendered = brief_builder.render_facts(brief_builder.gather(TODAY))
+    assert "CALENDAR: not connected" in rendered
+    assert "checked and is clear" not in rendered
 
 
 def test_facts_warn_against_inventing_interviews(test_engine, monkeypatch):

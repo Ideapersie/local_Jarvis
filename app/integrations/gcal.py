@@ -89,8 +89,14 @@ def _parse(node: dict) -> tuple[datetime | None, date | None, bool]:
     return None, None, False
 
 
-def upcoming(days: int = 7, start: date | None = None) -> list[Event]:
-    """Events from `start` through `days` ahead. Never raises."""
+def upcoming(days: int = 7, start: date | None = None) -> list[Event] | None:
+    """Events from `start` through `days` ahead. Never raises.
+
+    Returns None when the call did not happen, and a list when it did. An empty
+    list therefore means "asked Google, nothing scheduled", which is a different
+    fact from "could not ask" - and the brief must not blur the two. Matches
+    weather.fetch(), which already returns None on failure for the same reason.
+    """
     start = start or config.today()
     window_end = start + timedelta(days=days)
 
@@ -110,7 +116,7 @@ def upcoming(days: int = 7, start: date | None = None) -> list[Event]:
         )
     except Exception:
         log.warning("calendar fetch failed", exc_info=True)
-        return []
+        return None
 
     events: list[Event] = []
     for item in result.get("items", []):
