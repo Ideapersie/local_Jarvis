@@ -407,7 +407,8 @@ def report(results: list[Result]) -> bool:
     if selection and selection.rate < MIN_TOOL_ACCURACY:
         print(
             f"GATE FAIL: tool selection {selection.rate:.0%}, "
-            f"need {MIN_TOOL_ACCURACY:.0%}."
+            f"need {MIN_TOOL_ACCURACY:.0%}. Check whether the failures share a "
+            f"shape before blaming the model - scope the tool set first."
         )
         failures.append(f"tool selection {selection.rate:.0%}")
         ok = False
@@ -440,7 +441,13 @@ def report(results: list[Result]) -> bool:
     print(
         "GATE PASS: safe to build on this model."
         if ok
-        else "Do not proceed. Change quant or model, or add RAM."
+        else (
+            "Do not proceed yet. In order of likelihood: scope the tool set by "
+            "intent rather than sending all of them (a ranking failure looks "
+            "exactly like incompetence); confirm the grammar constraint is "
+            "actually applied on structured calls; re-run scripts/sweep_ngl.py "
+            "if speed is what failed. Change the model last, not first."
+        )
     )
 
     # Persisted so scripts/migration_status.py can report the gate without
