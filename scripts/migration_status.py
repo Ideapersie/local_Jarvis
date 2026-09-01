@@ -96,18 +96,29 @@ def _imports_agent_sdk(rel: str) -> bool:
 # --- phase 0 ----------------------------------------------------------------
 
 
-def p0_submodule() -> tuple[str, str]:
-    gm = ROOT / ".gitmodules"
-    if not gm.exists():
-        return TODO, "no .gitmodules; brain/ still lives in this repo"
-    text = gm.read_text(encoding="utf-8")
-    has_brain = "brain" in text
-    has_briefs = "briefs" in text
-    if has_brain and has_briefs:
-        return DONE, "brain/ and briefs/ are submodules"
-    if has_brain or has_briefs:
-        return PART, f"only {'brain' if has_brain else 'briefs'} is a submodule"
-    return TODO, ".gitmodules exists but names neither path"
+def p0_linked() -> tuple[str, str]:
+    """brain/ and briefs/ must be junctions into the private jarvis-brain repo.
+
+    Not submodules. A submodule maps one repo to one path, and jarvis-brain
+    holds both trees under its root; more to the point, the agent writes to
+    brain/ constantly, and a submodule would need a pointer bump in this repo
+    on top of every one of those commits.
+    """
+    linked, plain = [], []
+    for name in ("brain", "briefs"):
+        p = ROOT / name
+        if not p.exists():
+            plain.append(f"{name} missing")
+        elif p.resolve() != p.absolute():
+            linked.append(name)
+        else:
+            plain.append(f"{name} is a plain dir, not linked")
+
+    if len(linked) == 2:
+        return DONE, f"junctions into {(ROOT / 'brain').resolve().parent}"
+    if linked:
+        return PART, f"linked: {', '.join(linked)}; {'; '.join(plain)}"
+    return TODO, "; ".join(plain)
 
 
 def p0_history_scrubbed() -> tuple[str, str]:
@@ -272,7 +283,7 @@ PHASES = [
         "Split the brain out of the public repo",
         [
             Check("no secrets in git history", p0_no_secrets),
-            Check("brain/ + briefs/ are submodules", p0_submodule),
+            Check("brain/ + briefs/ linked to private repo", p0_linked),
             Check("history scrubbed of brain/briefs", p0_history_scrubbed),
             Check("brain/imported/ exists", p0_imported_dir),
             Check("public repo reviewed", p0_repo_private),
