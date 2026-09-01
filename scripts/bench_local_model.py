@@ -274,6 +274,31 @@ def bench_json(c: Client, snapshot: str, constrained: bool, runs: int) -> Result
     return res
 
 
+
+def agent_system() -> str:
+    """System prompt for the tool tests: the agent tier's, not the quick tier's.
+
+    These are different tiers with contradictory instructions. quick.SYSTEM says
+    to answer from the snapshot when it is sufficient, and the quick tier is
+    given no tools at all. Pairing that prompt with the tool list tells the model
+    two opposite things and then scores it for obeying the prompt: an early run
+    marked "Did I do everything today?" wrong for answering from the snapshot,
+    which is exactly what quick.SYSTEM asks for.
+
+    The agent tier's prompt is .claude/CLAUDE.md, loaded by the SDK through
+    setting_sources=["project"]. Read it from disk so this tracks the real file.
+    """
+    md = Path(__file__).resolve().parent.parent / ".claude" / "CLAUDE.md"
+    base = md.read_text(encoding="utf-8") if md.exists() else ""
+    return base + (
+        "\n\n## Answering\n"
+        "You have tools for the database. Call one whenever the answer depends on "
+        "habits, tasks, applications, prep notes or skills, and prefer a tool over "
+        "guessing. When the user reports an outcome that changes a record, update "
+        "it rather than only reading it back."
+    )
+
+
 def bench_tools(c: Client, snapshot: str) -> Result:
     res = Result("tool_selection")
     specs = llm_tools.specs()
@@ -283,7 +308,7 @@ def bench_tools(c: Client, snapshot: str) -> Result:
         try:
             resp = c.chat(
                 messages=[
-                    {"role": "system", "content": quick.SYSTEM},
+                    {"role": "system", "content": agent_system()},
                     {
                         "role": "user",
                         "content": f"<snapshot>\n{snapshot}\n</snapshot>\n\n{question}",
@@ -321,7 +346,7 @@ def bench_optional_params(c: Client, snapshot: str) -> Result:
         try:
             resp = c.chat(
                 messages=[
-                    {"role": "system", "content": quick.SYSTEM},
+                    {"role": "system", "content": agent_system()},
                     {
                         "role": "user",
                         "content": f"<snapshot>\n{snapshot}\n</snapshot>\n\n{question}",

@@ -227,3 +227,6 @@ IDEA_CV_Aug_2026.pdf
 # here again: this repo is public.
 brain/
 briefs/
+
+# Resumable tool-bench state, written by scripts/bench_tools_chunk.py.
+.bench_tools.jsonl

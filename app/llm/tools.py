@@ -149,6 +149,60 @@ SCHEMAS: dict[str, dict[str, Any]] = {
 }
 
 
+# Descriptions the local model sees, overriding the ones on the handlers.
+#
+# The originals were written for Sonnet, which chains calls: every write tool
+# said "use the numeric id from get_applications", so Sonnet would read first
+# and then write. A 3-bit model follows that pointer and stops there. Measured
+# on Qwen3.8-27B Q3_K_M, all five tool-selection failures were the same shape -
+# any question containing "application N" plus an action verb routed to
+# get_applications, while the identical write intent on a prep note or a skill
+# was chosen correctly.
+#
+# So: lead with the intent rather than the noun, say explicitly when NOT to use
+# the read tool, and never name another tool as a prerequisite. The id is
+# already in the user's message.
+DESCRIPTIONS: dict[str, str] = {
+    "get_applications": (
+        "READ ONLY. List the job applications with their stage and next date. "
+        "Use this only when the user is ASKING what their applications are, or "
+        "how one is progressing. Do NOT use this when the user is TELLING you "
+        "something changed or happened - that is a write, and there is a "
+        "separate tool for it. Optionally filter by stage."
+    ),
+    "set_application_stage": (
+        "Record that an application moved to a new stage. Use this whenever the "
+        "user reports an outcome: an offer, a rejection, passing or failing a "
+        "round, being invited to an interview. The application id is the number "
+        "in the user's own message. Stages: applied, oa, phone, technical, "
+        "final, offer, rejected."
+    ),
+    "set_application_date": (
+        "Record when the next thing on an application happens - an interview, an "
+        "assessment, a deadline. Use this whenever the user says a date for an "
+        "application. The application id is the number in the user's own "
+        "message. Date is YYYY-MM-DD, or an empty string to clear it."
+    ),
+    "get_prep_notes": (
+        "READ ONLY. List what is still to prepare for ONE application. Use this "
+        "when the user asks what is left to do, what to revise, or how prepared "
+        "they are for a specific application. The id is the number in their "
+        "message."
+    ),
+    "add_prep_note": (
+        "Record something to prepare, a weakness that surfaced, a question that "
+        "was asked, or an outcome, against one application. Use this whenever "
+        "the user wants something remembered or added for an application. Write "
+        "what the user actually said, not a paraphrase that adds detail. kind "
+        "must be one of: topic_to_learn, weakness, question_asked, outcome."
+    ),
+}
+
+
+def description_for(name: str, fallback: str) -> str:
+    return DESCRIPTIONS.get(name, fallback)
+
+
 def _check_complete() -> None:
     """Fail at import if SCHEMAS and ALL_TOOLS have drifted apart.
 
@@ -178,7 +232,7 @@ def specs() -> list[dict[str, Any]]:
             "type": "function",
             "function": {
                 "name": t.name,
-                "description": t.description,
+                "description": description_for(t.name, t.description),
                 "parameters": SCHEMAS[t.name],
             },
         }
