@@ -6,6 +6,10 @@ python-multipart>=0.0.20
 python-dotenv>=1.0
 apscheduler>=3.10,<4
 httpx>=0.27
+# Reads the machine's timezone locally, so weather and the scheduler follow a
+# move without an .env edit. Already pulled in by apscheduler; pinned here
+# because config.py imports it directly.
+tzlocal>=5.2
 
 # Agent tier (spawns a bundled Claude Code CLI - needs Node on PATH)
 claude-agent-sdk>=0.2.134
