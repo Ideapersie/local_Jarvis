@@ -87,6 +87,12 @@ TRADING212_BASE_URL = os.getenv(
     "TRADING212_BASE_URL", "https://demo.trading212.com/api/v0"
 )
 
+# Web search, replacing the SDK's WebSearch tool. The interview-prep skill
+# researches a firm's real process and cites URLs; without a key it is told
+# search is unavailable, which is safer than letting it invent one.
+SEARCH_PROVIDER = os.getenv("SEARCH_PROVIDER", "tavily")  # tavily | brave
+SEARCH_API_KEY = os.getenv("SEARCH_API_KEY")
+
 DEFAULT_LOCATION = os.getenv("DEFAULT_LOCATION", "")
 
 
