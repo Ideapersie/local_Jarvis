@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -119,3 +119,69 @@ def now() -> datetime:
 
 def today() -> date:
     return now().date()
+
+
+DEFAULT_ROLLOVER_HOUR = 5
+
+
+def resolve_rollover_hour(raw: str | None) -> int:
+    """Parse DAY_ROLLOVER_HOUR, falling back rather than raising on nonsense.
+
+    Capped below midday: a rollover at 13:00 would put an afternoon tick on
+    yesterday, which is a misconfiguration and not a sleep schedule.
+    """
+    if not raw:
+        return DEFAULT_ROLLOVER_HOUR
+    try:
+        hour = int(raw)
+    except ValueError:
+        log.warning("DAY_ROLLOVER_HOUR %r is not a number, ignoring it", raw)
+        return DEFAULT_ROLLOVER_HOUR
+    if not 0 <= hour <= 11:
+        log.warning("DAY_ROLLOVER_HOUR %r is outside 0-11, ignoring it", raw)
+        return DEFAULT_ROLLOVER_HOUR
+    return hour
+
+
+DAY_ROLLOVER_HOUR = resolve_rollover_hour(os.getenv("DAY_ROLLOVER_HOUR"))
+
+
+DEFAULT_BACKFILL_DAYS = 2
+
+
+def resolve_backfill_days(raw: str | None) -> int:
+    """How many days back a missed tick may be corrected. 0 disables backfill.
+
+    Capped at a week because the point is repairing a day you forgot to tick,
+    not reconstructing a month from memory. A streak you cannot remember is not
+    evidence of anything.
+    """
+    if not raw:
+        return DEFAULT_BACKFILL_DAYS
+    try:
+        days = int(raw)
+    except ValueError:
+        log.warning("HABIT_BACKFILL_DAYS %r is not a number, ignoring it", raw)
+        return DEFAULT_BACKFILL_DAYS
+    if not 0 <= days <= 7:
+        log.warning("HABIT_BACKFILL_DAYS %r is outside 0-7, ignoring it", raw)
+        return DEFAULT_BACKFILL_DAYS
+    return days
+
+
+HABIT_BACKFILL_DAYS = resolve_backfill_days(os.getenv("HABIT_BACKFILL_DAYS"))
+
+
+def habit_day(at: datetime | None = None) -> date:
+    """The day a habit tick belongs to. Rolls at DAY_ROLLOVER_HOUR, not midnight.
+
+    The user is normally still up at 01:00, so a tick then is the close of the
+    day that just ended, not the opening of the next one. Scoring it by the
+    calendar would break a streak on a day that was actually kept, and no
+    amount of grace in the streak walk fixes that - the log row itself would
+    carry the wrong date.
+
+    Habits only. Calendar, weather and the brief stay on `today()`, because
+    those answer "what is happening now", where the wall clock is right.
+    """
+    return ((at or now()) - timedelta(hours=DAY_ROLLOVER_HOUR)).date()

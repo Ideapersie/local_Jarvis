@@ -17,6 +17,7 @@ from app.agent import _is_writable
 from app.db import Application, Habit, HabitLog, PrepNote, Skill, Task
 
 TODAY = config.today()
+HABIT_DAY = config.habit_day()  # not TODAY between midnight and 05:00
 
 
 async def call_raw(_tool: str, **kwargs) -> dict:
@@ -57,7 +58,7 @@ def seeded(test_engine):
         )
         # leetcode: a live 3-day streak ending today.
         for offset in (0, 1, 2):
-            s.add(HabitLog(habit_id=1, day=TODAY - timedelta(days=offset)))
+            s.add(HabitLog(habit_id=1, day=HABIT_DAY - timedelta(days=offset)))
 
         s.add(Task(title="review backprop", created_at=datetime.now()))
         s.add(Task(title="done thing", done=True, created_at=datetime.now()))
@@ -111,7 +112,7 @@ async def test_get_habits_agrees_with_the_streaks_service(seeded):
     """The tool must not reimplement streak logic - it must reuse it."""
     from app.services import streaks
 
-    expected = streaks.current_streak(seeded, 1, TODAY)
+    expected = streaks.current_streak(seeded, 1, HABIT_DAY)
     out = await call("get_habits")
     assert f"current streak {expected}" in out
 

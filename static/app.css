@@ -235,6 +235,20 @@ body {
 .wk-on { background: var(--amber); }
 .wk-off { background: rgba(255, 255, 255, 0.09); }
 
+/* The last few days are clickable, to fix a tick missed overnight.
+   4x12 of paint inside a 10x16 target, pulled back by the negative margin so
+   the week still reads as a week. A 4px click target is not a click target. */
+.wk-btn {
+  width: 10px;
+  height: 16px;
+  padding: 2px 3px;
+  margin: -2px -3px;
+  border: 0;
+  cursor: pointer;
+  background-clip: content-box;
+}
+.wk-btn:hover { box-shadow: 0 0 0 1px var(--amber); }
+.wk-btn:focus-visible { outline: 1px solid var(--amber); outline-offset: 2px; }
 
 .habit-streak {
   flex: none;

@@ -55,7 +55,7 @@ def _error(body: str) -> dict[str, Any]:
     annotations=READ_ONLY,
 )
 async def get_habits(args: dict[str, Any]) -> dict[str, Any]:
-    today = config.today()
+    today = config.habit_day()
     with _session() as s:
         habits = s.exec(
             select(db.Habit).where(db.Habit.active == True).order_by(db.Habit.id)
@@ -88,7 +88,7 @@ async def get_habits(args: dict[str, Any]) -> dict[str, Any]:
 async def get_habit_history(args: dict[str, Any]) -> dict[str, Any]:
     span = int(args.get("days", 14))
     name = args["name"].strip().lower()
-    today = config.today()
+    today = config.habit_day()
 
     with _session() as s:
         habit = next(

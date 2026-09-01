@@ -16,6 +16,7 @@ from app.integrations import gcal, notify, weather
 from app.services import brief_builder, triage
 
 TODAY = config.today()
+HABIT_DAY = config.habit_day()  # not TODAY between midnight and 05:00
 
 
 @pytest.fixture()
@@ -175,7 +176,7 @@ def test_creatine_due_when_not_logged(seeded):
 
 
 def test_creatine_not_due_once_logged(seeded):
-    seeded.add(db.HabitLog(habit_id=1, day=TODAY))
+    seeded.add(db.HabitLog(habit_id=1, day=HABIT_DAY))
     seeded.commit()
     assert jobs.creatine_due() is False
 
@@ -195,7 +196,7 @@ def test_creatine_sends_exactly_one_reminder(seeded, test_engine):
 
 
 def test_creatine_sends_nothing_when_done(seeded, test_engine):
-    seeded.add(db.HabitLog(habit_id=1, day=TODAY))
+    seeded.add(db.HabitLog(habit_id=1, day=HABIT_DAY))
     seeded.commit()
     jobs.creatine_check()
     assert (

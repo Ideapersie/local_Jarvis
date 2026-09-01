@@ -84,7 +84,7 @@ def creatine_due() -> bool:
     This is a boolean, so Python evaluates it. Asking a model to decide whether
     a row exists is both more expensive and less reliable than a query.
     """
-    today = config.today()
+    today = config.habit_day()
     with Session(db.engine) as s:
         habit = next(
             (
