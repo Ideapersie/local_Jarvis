@@ -13,8 +13,10 @@ tzlocal>=5.2
 
 # Agent tier (spawns a bundled Claude Code CLI - needs Node on PATH)
 claude-agent-sdk>=0.2.134
-# Quick tier: single-shot classification, no agent loop
+# Portfolio tier (Opus 5), and the quick tier until Phase 5 moves it local
 anthropic>=0.121.0
+# Local model: talks to llama.cpp's OpenAI-compatible endpoint
+openai>=1.60
 
 # Google: Gmail + Calendar, desktop OAuth with a cached token
 google-api-python-client>=2.150

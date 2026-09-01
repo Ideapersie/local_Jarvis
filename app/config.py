@@ -29,9 +29,34 @@ BRIEFS_DIR = ROOT / "briefs"
 
 # Models. Quick tier for fixed-shape classification, agent tier for the loop,
 # portfolio tier only where a wrong answer costs money.
+#
+# MODEL_QUICK and MODEL_AGENT still name Claude models because app/quick.py and
+# app/agent.py still call Claude. They are repointed at the local model in
+# Phase 5, when their callers move; changing them here first would break a
+# working app for no gain.
 MODEL_QUICK = "claude-haiku-4-5"
 MODEL_AGENT = "claude-sonnet-5"
-MODEL_PORTFOLIO = "claude-sonnet-5"
+
+# The only billed path after the migration. Opus rather than Sonnet because this
+# is the one place a wrong answer costs money rather than a re-run.
+MODEL_PORTFOLIO = "claude-opus-5"
+
+# Local model, served by llama.cpp. See scripts/start-llama.ps1 for the launch
+# flags and why they are what they are.
+LOCAL_BASE_URL = os.getenv("LOCAL_BASE_URL", "http://127.0.0.1:8080/v1")
+# llama-server serves whatever GGUF it was started with and ignores this, but
+# the OpenAI client requires a model field.
+LOCAL_MODEL = os.getenv("LOCAL_MODEL", "local")
+# Generous: at roughly 4.5 tok/s a long brief legitimately takes minutes, and a
+# timeout mid-brief loses the whole turn.
+LOCAL_TIMEOUT_S = float(os.getenv("LOCAL_TIMEOUT_S", "900"))
+# Greedy by default. The dashboard wants the same question to give the same
+# answer twice, and there is no creative writing here.
+LOCAL_TEMPERATURE = float(os.getenv("LOCAL_TEMPERATURE", "0"))
+# Qwen3.8 reasons unless told not to. Measured, that costs 53 tokens and 10.9s
+# against 4 tokens and 0.8s for the same answer on a database lookup, so it is
+# off unless a caller asks for it.
+LOCAL_THINK_DEFAULT = os.getenv("LOCAL_THINK_DEFAULT", "false").lower() == "true"
 
 # Agent auth. "subscription" bills the monthly Agent SDK credit that comes with
 # a Claude plan (Pro $20 / Max 5x $100 / Max 20x $200, no rollover); the SDK
