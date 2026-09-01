@@ -108,6 +108,37 @@ def creatine_check() -> None:
     log.info("18:00 job: reminder sent via %s", via)
 
 
+# --- Claude memory sync -----------------------------------------------------
+
+
+async def memory_sync() -> None:
+    """Pull Claude Code's curated memories into brain/imported/.
+
+    Runs at 06:20, before the 06:25 triage and the 06:30 brief, so anything
+    learned in a Claude Code session yesterday is on disk before the brief reads
+    brain/. Subprocess rather than an import: it commits and pushes to a
+    different repo, and doing that inside the app's event loop would block it on
+    the network.
+    """
+    import sys
+
+    script = config.ROOT / "scripts" / "sync_claude_memory.py"
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            sys.executable,
+            str(script),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+        )
+        out, _ = await asyncio.wait_for(proc.communicate(), timeout=300)
+        tail = (out or b"").decode(errors="replace").strip()[-300:]
+        log.info("memory sync: %s", tail)
+    except TimeoutError:
+        log.warning("memory sync timed out")
+    except Exception:
+        log.exception("memory sync failed")
+
+
 # --- Sunday 19:00 reflection ------------------------------------------------
 
 
@@ -150,6 +181,11 @@ def start() -> AsyncIOScheduler:
     _scheduler = AsyncIOScheduler(timezone=config.TIMEZONE)
     common = dict(replace_existing=True, max_instances=1, coalesce=True)
 
+    # Before triage and the brief: yesterday's Claude Code memories should be on
+    # disk before anything reads brain/.
+    _scheduler.add_job(
+        memory_sync, "cron", hour=6, minute=20, id="memory_sync", **common
+    )
     _scheduler.add_job(
         inbox_triage, "cron", hour=6, minute=25, id="inbox_triage", **common
     )
@@ -211,6 +247,7 @@ async def run_now(job_id: str) -> None:
         "inbox_triage": inbox_triage,
         "morning_brief": morning_brief,
         "creatine_check": creatine_check,
+        "memory_sync": memory_sync,
         "weekly_reflection": weekly_reflection,
     }
     fn = targets[job_id]

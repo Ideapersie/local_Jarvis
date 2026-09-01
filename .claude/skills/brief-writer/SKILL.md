@@ -51,3 +51,11 @@ omit the heading entirely rather than inventing something.
 
 Write the full brief to `briefs/YYYY-MM-DD.md` using today's date. Then reply
 with a two-sentence summary for the dashboard panel, and nothing else.
+
+## Imported memories
+
+brain/imported/ holds facts synced from Claude Code sessions, one folder per
+project. Read them when the Focus section would otherwise be generic - they are
+where a note like "the entropy gate is off by one" or "he prefers short commit
+messages" lives. Treat them exactly like the hand-written brain/ files: never
+invent, and say so if you inferred rather than read something.
