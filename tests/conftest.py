@@ -22,6 +22,31 @@ from app.deps import get_session
 SEED = date(2026, 1, 1)
 
 
+@pytest.fixture(autouse=True)
+def _never_the_real_database(monkeypatch):
+    """Point app.db.engine at a throwaway database for EVERY test.
+
+    The rule above was opt-in: a test had to remember to ask for test_engine.
+    tests/test_portfolio.py built its own engine and did not, so every call to
+    services.costs.record - which opens Session(db.engine) directly, whatever
+    session the caller is holding - wrote a fabricated Opus charge into the real
+    jarvis.db. Six of them, at a cost that never happened, which the dashboard
+    would have shown as real spend.
+
+    Autouse closes that by default. A test wanting the app wiring still asks for
+    test_engine, which overrides this with its own engine.
+    """
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    SQLModel.metadata.create_all(engine)
+    monkeypatch.setattr(db_module, "engine", engine)
+    monkeypatch.setattr(main_module, "engine", engine)
+    return engine
+
+
 @pytest.fixture()
 def test_engine(monkeypatch):
     """In-memory engine, swapped in everywhere the real one is referenced.
