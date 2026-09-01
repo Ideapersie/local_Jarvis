@@ -150,15 +150,51 @@ def _first_call(resp: dict[str, Any]) -> dict[str, Any] | None:
     return calls[0] if calls else None
 
 
+def _answer_text(resp: dict[str, Any]) -> str:
+    """The model's answer, not its thinking.
+
+    Qwen3.8 reasons by default and llama-server splits that into a separate
+    `reasoning_content` field, leaving `content` empty until the thinking ends.
+    Reading `content` alone scores a correct answer as unparseable, so fall back
+    to reasoning_content only when content is genuinely absent - which is itself
+    a finding worth seeing, because it means max_tokens was spent thinking.
+    """
+    msg = resp["choices"][0]["message"]
+    content = (msg.get("content") or "").strip()
+    if content:
+        return content
+    return (msg.get("reasoning_content") or "").strip()
+
+
 # --- the four measurements --------------------------------------------------
 
 
-def bench_speed(c: Client, snapshot: str) -> Result:
+def server_ctx(c: Client) -> int:
+    """Context window the server was actually launched with.
+
+    Asking beats assuming: the bench sent a 15k-token prompt at a server
+    relaunched with -c 8192 and got an opaque 400 back.
+    """
+    try:
+        base = c.base_url.rsplit("/v1", 1)[0]
+        props = c.http.get(f"{base}/props", timeout=10).json()
+        n = props.get("default_generation_settings", {}).get("n_ctx")
+        return int(n) if n else 8192
+    except (httpx.HTTPError, ValueError, TypeError, KeyError):
+        return 8192
+
+
+def bench_speed(c: Client, snapshot: str, ctx_tokens: int) -> Result:
     res = Result("speed", total=1)
 
-    # Pad towards 16k tokens so prefill is measured under real load rather than
-    # on a toy prompt that fits in a single batch.
-    repeats = max(1, 60000 // max(len(snapshot), 1))
+    # Pad towards half the window so prefill is measured under real load rather
+    # than on a toy prompt that fits in a single batch.
+    # Sized from the server's real context window, not a hardcoded guess. The
+    # first version padded towards 16k and got a flat 400 once the server was
+    # relaunched at -c 8192. Roughly 3.5 chars per token, and only half the
+    # window is used so the reply and the thinking have somewhere to go.
+    budget_chars = int(ctx_tokens * 0.5 * 3.5)
+    repeats = max(1, budget_chars // max(len(snapshot), 1))
     filler = (snapshot + "\n\n") * repeats
 
     started = time.monotonic()
@@ -219,7 +255,7 @@ def bench_json(c: Client, snapshot: str, constrained: bool, runs: int) -> Result
                 max_tokens=1024,
                 **extra,
             )
-            text = resp["choices"][0]["message"]["content"]
+            text = _answer_text(resp)
             validate(instance=json.loads(text), schema=quick.RESPONSE_SCHEMA)
             res.passed += 1
         except (json.JSONDecodeError, ValidationError, TypeError) as exc:
@@ -422,12 +458,13 @@ def main() -> int:
         return 2
 
     snapshot = quick.snapshot()
-    print(f"snapshot is {len(snapshot)} chars")
+    ctx_tokens = server_ctx(c)
+    print(f"snapshot is {len(snapshot)} chars, server n_ctx is {ctx_tokens}")
 
     results: list[Result] = []
     try:
         if "speed" not in args.skip:
-            results.append(bench_speed(c, snapshot))
+            results.append(bench_speed(c, snapshot, ctx_tokens))
         if "json" not in args.skip:
             results.append(bench_json(c, snapshot, constrained=False, runs=args.runs))
             results.append(bench_json(c, snapshot, constrained=True, runs=args.runs))
