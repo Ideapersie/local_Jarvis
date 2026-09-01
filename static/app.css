@@ -34,6 +34,40 @@ body {
   color: #6b6b70;
 }
 
+/* Forecast strip beside the date. Three anchor hours as columns: label, rain
+   chance, temperature. min-width is reserved so the lazy htmx swap does not
+   shove the centred date sideways when it lands. */
+.head-weather {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.55rem;
+  margin-left: 1.1rem;
+  min-width: 9.5rem;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.6875rem;
+  line-height: 1.35;
+  color: #6b6b70;
+}
+
+.hw-city {
+  color: #4d4d54;
+  align-self: center;
+}
+
+.hw-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(2.3rem, auto));
+  gap: 0 0.55rem;
+  text-align: center;
+}
+
+.hw-time { color: #4d4d54; }
+/* Rain is the row that changes a decision, so it is the one with colour. */
+.hw-rain { color: #7ba3c9; }
+.hw-temp { color: #a1a1a8; }
+.hw-none { color: #4d4d54; }
+
 /* ---------- shell ---------- */
 
 .shell {
@@ -200,6 +234,7 @@ body {
 .wk { width: 4px; height: 12px; border-radius: 1px; }
 .wk-on { background: var(--amber); }
 .wk-off { background: rgba(255, 255, 255, 0.09); }
+
 
 .habit-streak {
   flex: none;
