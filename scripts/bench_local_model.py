@@ -114,9 +114,12 @@ class Result:
 
 
 class Client:
-    def __init__(self, base_url: str, model: str, timeout: float) -> None:
+    def __init__(
+        self, base_url: str, model: str, timeout: float, think: bool = True
+    ) -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
+        self.think = think
         self.http = httpx.Client(timeout=timeout)
 
     def chat(self, **body: Any) -> dict[str, Any]:
@@ -124,6 +127,12 @@ class Client:
         # Greedy decoding: the bench measures capability, and sampling noise
         # would make a rerun disagree with itself.
         body.setdefault("temperature", 0.0)
+        if not self.think:
+            # Qwen3.8 reasons by default. On a snapshot lookup that reasoning is
+            # pure cost: measured 53 tokens and 10.9s with it on versus 4 tokens
+            # and 0.8s with it off, for the same correct answer. Throughput is
+            # unchanged either way - it is the token count that collapses.
+            body.setdefault("chat_template_kwargs", {"enable_thinking": False})
         r = self.http.post(f"{self.base_url}/chat/completions", json=body)
         r.raise_for_status()
         return r.json()
@@ -441,13 +450,18 @@ def main() -> int:
         help="llama-server ignores this; sent for OpenAI compatibility",
     )
     p.add_argument("--runs", type=int, default=10, help="iterations for each JSON test")
-    p.add_argument("--timeout", type=float, default=600.0)
+    p.add_argument("--timeout", type=float, default=1800.0)
+    p.add_argument(
+        "--think",
+        action="store_true",
+        help="leave the model's reasoning on (default off: these paths do not need it)",
+    )
     p.add_argument(
         "--skip", nargs="*", default=[], choices=["speed", "json", "tools", "params"]
     )
     args = p.parse_args()
 
-    c = Client(args.base_url, args.model, args.timeout)
+    c = Client(args.base_url, args.model, args.timeout, think=args.think)
     health = c.base_url.rsplit("/v1", 1)[0] + "/health"
     try:
         c.http.get(health)
@@ -459,7 +473,10 @@ def main() -> int:
 
     snapshot = quick.snapshot()
     ctx_tokens = server_ctx(c)
-    print(f"snapshot is {len(snapshot)} chars, server n_ctx is {ctx_tokens}")
+    print(
+        f"snapshot is {len(snapshot)} chars, server n_ctx is {ctx_tokens}, "
+        f"thinking {'on' if args.think else 'off'}"
+    )
 
     results: list[Result] = []
     try:

@@ -4,9 +4,17 @@
 # a single GGUF is 14-17 GB. Override with JARVIS_MODEL_DIR / JARVIS_LLAMA_DIR
 # if they move.
 #
-# -NGL is the number of layers pushed onto the GPU. The 4060 Laptop has 8 GB, so
-# a dense 27B cannot fit entirely; raise -NGL until VRAM is nearly full and
-# llama-server still starts, then leave it. Watch it with `nvidia-smi`.
+# -NGL is the number of layers pushed onto the GPU. Do NOT simply raise it until
+# VRAM is full: past roughly 95% the driver backs allocations with shared system
+# memory, which is slower than llama.cpp's own CPU offload, so generation gets
+# worse while prefill still looks better. Measured on this machine with
+# Qwen3.8-27B Q3_K_M at 8k context:
+#
+#   ngl 24  2.06 tok/s     ngl 36  4.56 tok/s  <- peak, the default below
+#   ngl 30  4.15 tok/s     ngl 40  3.23 tok/s
+#                          ngl 48  1.52 tok/s
+#
+# Re-measure with scripts/sweep_ngl.py after any model or quant change.
 #
 # Usage:
 #   .\scripts\start-llama.ps1                       # first .gguf found
@@ -15,8 +23,8 @@
 
 param(
     [string]$Model = "",
-    [int]$Ngl = 40,
-    [int]$Ctx = 16384,
+    [int]$Ngl = 36,
+    [int]$Ctx = 8192,
     [int]$Port = 8080,
     [switch]$NoQuantKv
 )
