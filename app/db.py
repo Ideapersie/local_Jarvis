@@ -137,11 +137,34 @@ class CostLog(SQLModel, table=True):
     cache_read_tokens: int = 0
 
 
+class PortfolioNote(SQLModel, table=True):
+    """One Opus analysis, kept so the panel does not re-bill on every page load.
+
+    Stored rather than cached in memory because the whole point of keeping this
+    tier on a paid model is that its output is worth reading twice.
+    """
+
+    id: int | None = Field(default=None, primary_key=True)
+    at: datetime = Field(index=True)
+    body: str
+    model: str
+    cost_usd: float = 0.0
+
+
 class Holding(SQLModel, table=True):
+    """A position as of the last sync.
+
+    current_price is stored despite being stale the moment it is written. The
+    alternative is calling Trading212 on every dashboard render, which is two
+    HTTP requests into a rate-limited API each time someone refreshes a page.
+    synced_at is what makes the staleness visible rather than pretended away.
+    """
+
     id: int | None = Field(default=None, primary_key=True)
     ticker: str = Field(index=True)
     quantity: float
     avg_price: float
+    current_price: float = 0.0
     horizon: str  # long | short
     synced_at: datetime
 

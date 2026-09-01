@@ -15,9 +15,10 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from app import config, jobs, loop
 from app.db import create_db_and_tables, engine, seed_habits
 from app.deps import get_session, templates
-from app.routers import brief, career, chat, habits, tasks, weather
+from app.routers import brief, career, chat, habits, portfolio, tasks, weather
 from app.security import ALLOWED_HOSTS, block_cross_site
 from app.services import costs
+from app.services import portfolio as portfolio_service
 
 logging.basicConfig(
     level=logging.INFO,
@@ -62,6 +63,7 @@ app.include_router(chat.router)
 app.include_router(brief.router)
 app.include_router(career.router)
 app.include_router(weather.router)
+app.include_router(portfolio.router)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -79,7 +81,9 @@ def index(request: Request, session: Session = Depends(get_session)):
             # Portfolio still renders an empty state until Day 4. Passing None
             # rather than fabricated numbers is deliberate: placeholder figures
             # on a dashboard get read as real ones.
-            "portfolio": None,  # Day 4
+            # portfolio here is the router; the panel data comes from the
+            # service of the same name.
+            "portfolio": portfolio_service.view(session),
             **brief.build_context(session),
         },
     )
