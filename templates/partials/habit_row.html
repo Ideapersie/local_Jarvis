@@ -21,7 +21,18 @@
 
   <div class="habit-week" title="last 7 days" aria-label="last 7 days">
     {% for d in h.week %}
-      <span class="wk {{ 'wk-on' if d.done else 'wk-off' }}" title="{{ d.day }}"></span>
+      {% if d.editable %}
+        <button type="button"
+                hx-post="/habits/{{ h.id }}/toggle?day={{ d.day }}"
+                hx-target="#habit-{{ h.id }}"
+                hx-swap="outerHTML"
+                aria-pressed="{{ 'true' if d.done else 'false' }}"
+                aria-label="Toggle {{ h.name }} on {{ d.day }}"
+                title="{{ d.day }}"
+                class="wk wk-btn {{ 'wk-on' if d.done else 'wk-off' }}"></button>
+      {% else %}
+        <span class="wk {{ 'wk-on' if d.done else 'wk-off' }}" title="{{ d.day }}"></span>
+      {% endif %}
     {% endfor %}
   </div>
 

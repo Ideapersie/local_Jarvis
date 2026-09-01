@@ -1,0 +1,21 @@
+{#- Header forecast: three anchor hours, rain on row two, temperature on row
+    three. Swaps itself in via hx-swap="outerHTML", so the root element here
+    must keep the same class as the placeholder in index.html. -#}
+<span class="head-weather">
+  {%- if anchors %}
+    <span class="hw-city">{{ location }}</span>
+    <span class="hw-grid">
+      {%- for hour, point in anchors %}
+        <span class="hw-time">{{ label(hour) }}</span>
+      {%- endfor %}
+      {%- for hour, point in anchors %}
+        <span class="hw-rain">{% if point and point.rain_pct is not none %}{{ point.rain_pct }}%{% endif %}</span>
+      {%- endfor %}
+      {%- for hour, point in anchors %}
+        <span class="hw-temp" {% if point %}title="{{ point.condition }}"{% endif %}>{% if point and point.temp_c is not none %}{{ '%.0f'|format(point.temp_c) }}&deg;{% endif %}</span>
+      {%- endfor %}
+    </span>
+  {%- else %}
+    <span class="hw-none">forecast unavailable</span>
+  {%- endif %}
+</span>

@@ -28,7 +28,7 @@
   </script>
   <script src="https://unpkg.com/htmx.org@2.0.4"></script>
   <script src="https://cdn.jsdelivr.net/npm/htmx-ext-sse@2.2.4"></script>
-  <link rel="stylesheet" href="/static/app.css">
+  <link rel="stylesheet" href="/static/app.css?v={{ asset_version() }}">
 </head>
 <body class="bg-char-900 text-neutral-200 font-sans antialiased">
 
@@ -36,6 +36,10 @@
 
   <header class="shell-head">
     <span class="head-date">{{ today }}</span>
+    {#- Lazy-loaded: the forecast call can block for 15s, and the page
+        must not wait on it. -#}
+    <span class="head-weather" hx-get="/weather/panel" hx-trigger="load"
+          hx-swap="outerHTML"></span>
     {% if spend %}
       <span class="head-spend"
             title="Month to date across {{ spend.calls }} model calls{% if spend.credit %}, against your ${{ '%.0f'|format(spend.credit) }} plan credit{% endif %}">
