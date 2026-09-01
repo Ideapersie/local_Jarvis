@@ -222,3 +222,8 @@ IDEA_CV_Aug_2026.pdf
 # Bench result, written by scripts/bench_local_model.py and read by
 # scripts/migration_status.py. Machine-specific, not worth versioning.
 .bench_result.json
+
+# brain/ and briefs/ live in the private jarvis-brain repo. Never track them
+# here again: this repo is public.
+brain/
+briefs/
