@@ -13,8 +13,8 @@ import pytest
 from sqlmodel import Session
 
 from app import agent_tools, config
-from app.agent import _is_writable
 from app.db import Application, Habit, HabitLog, PrepNote, Skill, Task
+from app.llm.fs_tools import is_writable as _is_writable
 
 TODAY = config.today()
 HABIT_DAY = config.habit_day()  # not TODAY between midnight and 05:00
@@ -212,8 +212,11 @@ def test_write_confinement(path, allowed):
     assert _is_writable(path) is allowed
 
 
-def test_tool_names_are_namespaced():
-    assert "mcp__jarvis__get_habits" in agent_tools.TOOL_NAMES
+def test_tool_names_are_bare():
+    """No mcp__jarvis__ prefix now: app/loop.py dispatches these directly, and a
+    shorter name is one less thing for a 3-bit model to reproduce exactly."""
+    assert "get_habits" in agent_tools.TOOL_NAMES
+    assert not any(n.startswith("mcp__") for n in agent_tools.TOOL_NAMES)
     assert len(agent_tools.TOOL_NAMES) == len(agent_tools.ALL_TOOLS)
 
 

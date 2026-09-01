@@ -90,7 +90,12 @@ def _grep(rel: str, pattern: str, want: bool = True) -> bool:
 
 
 def _imports_agent_sdk(rel: str) -> bool:
-    return _grep(rel, r"claude_agent_sdk")
+    """An actual import, not a mention.
+
+    app/agent_tools.py explains in a comment where its @tool decorator came
+    from; a bare substring match reported that as a live dependency.
+    """
+    return _grep(rel, r"^\s*(from|import)\s+claude_agent_sdk")
 
 
 # --- phase 0 ----------------------------------------------------------------

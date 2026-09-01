@@ -7,7 +7,6 @@ parsing and decision logic rather than the APIs.
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import ClassVar
 
 import pytest
 from sqlmodel import Session, select
@@ -17,6 +16,21 @@ from app.integrations import gcal, gmail
 from app.services import brief_builder, triage
 
 TODAY = config.today()
+
+
+def _fake_provider(text: str):
+    """A provider that returns one fixed completion.
+
+    The quick tier is a single constrained call now, not an Anthropic client, so
+    the seam these tests patch is the provider rather than app.quick.client.
+    """
+    from app.llm.base import Completion, Usage
+
+    class _P:
+        def complete(self, **kwargs):
+            return Completion(text=text, usage=Usage(10, 5))
+
+    return _P()
 
 
 def message(mid="m1", sender="Ada <ada@example.com>", subject="Hello", **kw):
@@ -82,21 +96,7 @@ def test_hallucinated_ids_are_dropped(monkeypatch):
             '{"id": "ghost", "category": "reply_needed"}]}'
         )
 
-    class FakeUsage:
-        input_tokens = 10
-        output_tokens = 5
-
-    class FakeResp:
-        content: ClassVar = [FakeBlock()]
-        usage = FakeUsage()
-
-    class FakeClient:
-        class messages:
-            @staticmethod
-            def create(**kw):
-                return FakeResp()
-
-    monkeypatch.setattr("app.quick.client", lambda: FakeClient())
+    monkeypatch.setattr(triage.local, "provider", _fake_provider(FakeBlock.text))
     out = triage.classify([message(mid="real")])
     assert out == {"real": "fyi"}
 
@@ -106,21 +106,7 @@ def test_unknown_category_is_dropped(monkeypatch):
         type = "text"
         text = '{"items": [{"id": "real", "category": "spam_probably"}]}'
 
-    class FakeUsage:
-        input_tokens = 10
-        output_tokens = 5
-
-    class FakeResp:
-        content: ClassVar = [FakeBlock()]
-        usage = FakeUsage()
-
-    class FakeClient:
-        class messages:
-            @staticmethod
-            def create(**kw):
-                return FakeResp()
-
-    monkeypatch.setattr("app.quick.client", lambda: FakeClient())
+    monkeypatch.setattr(triage.local, "provider", _fake_provider(FakeBlock.text))
     assert triage.classify([message(mid="real")]) == {}
 
 

@@ -10,22 +10,14 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
-import time
 import uuid
 from html import escape
 
-from claude_agent_sdk import (
-    AssistantMessage,
-    ResultMessage,
-    TextBlock,
-    ToolUseBlock,
-)
 from fastapi import APIRouter, Cookie, Form, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, StreamingResponse
 
-from app import agent, config, quick
+from app import loop, quick
 from app.deps import templates
-from app.services import costs
 
 log = logging.getLogger("jarvis.chat")
 
@@ -104,79 +96,38 @@ async def send(
 async def _run_turn(session_id: str, prompt: str):
     """Answer one message, cheaply if possible.
 
-    Tries the quick tier first: a single Haiku call over a prefetched snapshot,
-    roughly ninety times cheaper than an agent turn. It escalates itself when the
-    question needs files, the web, or multi-step work, and any failure escalates
-    too - a broken quick tier should cost a slower answer, never a wrong one.
+    Tries the quick tier first: one constrained call over a prefetched snapshot,
+    no tools. That is 175 tokens of context against 1379 for the smallest
+    tool-bearing profile, and prefill runs at about 14.5 tok/s here - roughly a
+    second versus a minute and a half. It escalates itself when the question
+    needs files, the web, or multi-step work, and any failure escalates too: a
+    broken quick tier should cost a slower answer, never a wrong one.
     """
     answer, meta = await asyncio.to_thread(quick.try_answer, prompt)
     if answer is not None:
-        log.info("quick tier answered (cost=$%.5f)", meta.get("cost_usd", 0.0))
+        log.info("quick tier answered")
         yield _sse("tool", '<span class="tool-line">&rarr; quick</span>')
         yield _sse("token", _render(answer))
         yield _sse("done", "")
         return
 
-    log.info("escalating to agent tier: %s", meta.get("reason"))
+    log.info("escalating to the agent loop: %s", meta.get("reason"))
 
-    try:
-        entry = await agent.get_entry(session_id)
-    except Exception:
-        log.exception("could not start agent session")
-        yield _sse("token", "<em>Agent failed to start. Check the server log.</em>")
-        yield _sse("done", "")
-        return
-
-    async with entry.lock:
-        try:
-            await entry.client.query(prompt)
-            async for msg in entry.client.receive_response():
-                if isinstance(msg, AssistantMessage):
-                    for block in msg.content:
-                        if isinstance(block, TextBlock) and block.text:
-                            yield _sse("token", _render(block.text))
-                        elif isinstance(block, ToolUseBlock):
-                            short = block.name.replace("mcp__jarvis__", "")
-                            log.info("tool call: %s", block.name)
-                            tag = escape(short)
-                            yield _sse(
-                                "tool",
-                                f'<span class="tool-line">&rarr; {tag}</span>',
-                            )
-                elif isinstance(msg, ResultMessage):
-                    auth = agent.active_auth()
-                    costs.record(
-                        "chat_agent",
-                        "agent",
-                        config.MODEL_AGENT,
-                        msg.total_cost_usd,
-                        auth=auth,
-                        usage=msg.usage or {},
-                    )
-                    log.info(
-                        "agent turn: cost=$%.4f turns=%d auth=%s",
-                        msg.total_cost_usd or 0.0,
-                        msg.num_turns,
-                        auth,
-                    )
-                    # A spent plan credit stops requests dead. Detect it here so
-                    # the next session silently uses the API key instead of the
-                    # brief just not appearing one morning.
-                    if msg.is_error and agent.looks_like_credit_exhaustion(
-                        " ".join(msg.errors or []) + (msg.result or "")
-                    ):
-                        agent.note_credit_exhausted()
-                    break
-        except asyncio.CancelledError:
-            # Browser closed the EventSource. Not an error.
-            raise
-        except Exception:
-            log.exception("agent turn failed")
+    # Read tools only. A chat turn that changes a record goes through the
+    # career panel, which is explicit about what it is writing; letting an
+    # open-ended chat message reach the write tools would put a fabricated
+    # stage change one ambiguous sentence away.
+    async for event in loop.run_turn(
+        session_id, prompt, profile="chat_read", kind="chat_agent"
+    ):
+        if event.kind == "text" and event.data:
+            yield _sse("token", _render(event.data))
+        elif event.kind == "tool":
             yield _sse(
-                "token", "<em>The agent errored mid-turn. Check the server log.</em>"
+                "tool", f'<span class="tool-line">&rarr; {escape(event.data)}</span>'
             )
-        finally:
-            entry.last_used = time.monotonic()
+        elif event.kind == "error":
+            yield _sse("token", f"<em>{escape(event.data)}</em>")
 
     yield _sse("done", "")
 

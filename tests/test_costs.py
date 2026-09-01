@@ -11,7 +11,7 @@ from datetime import timedelta
 import pytest
 from sqlmodel import Session
 
-from app import agent, config, db
+from app import config, db
 from app.services import costs
 
 
@@ -108,56 +108,9 @@ def test_record_tolerates_a_null_cost(test_engine, store):
     assert costs.month_to_date(store)["calls"] == 1
 
 
-# --- auth selection ---------------------------------------------------------
-
-
-def test_subscription_is_the_default(monkeypatch):
-    monkeypatch.setattr(config, "AGENT_AUTH", "subscription")
-    monkeypatch.setattr(agent, "_credit_exhausted", False)
-    assert agent.active_auth() == "subscription"
-
-
-def test_exhausted_credit_falls_back_to_the_key(monkeypatch):
-    monkeypatch.setattr(config, "AGENT_AUTH", "subscription")
-    monkeypatch.setattr(config, "AGENT_AUTH_FALLBACK", True)
-    monkeypatch.setattr(config, "ANTHROPIC_API_KEY", "sk-test")
-    monkeypatch.setattr(agent, "_credit_exhausted", True)
-    assert agent.active_auth() == "api_key"
-
-
-def test_no_fallback_without_a_key(monkeypatch):
-    """With nothing to fall back to, stay put rather than claim a key exists."""
-    monkeypatch.setattr(config, "AGENT_AUTH", "subscription")
-    monkeypatch.setattr(config, "AGENT_AUTH_FALLBACK", True)
-    monkeypatch.setattr(config, "ANTHROPIC_API_KEY", None)
-    monkeypatch.setattr(agent, "_credit_exhausted", True)
-    assert agent.active_auth() == "subscription"
-
-
-def test_fallback_can_be_disabled(monkeypatch):
-    monkeypatch.setattr(config, "AGENT_AUTH", "subscription")
-    monkeypatch.setattr(config, "AGENT_AUTH_FALLBACK", False)
-    monkeypatch.setattr(config, "ANTHROPIC_API_KEY", "sk-test")
-    monkeypatch.setattr(agent, "_credit_exhausted", True)
-    assert agent.active_auth() == "subscription"
-
-
-@pytest.mark.parametrize(
-    "text,expected",
-    [
-        ("You have exceeded your credit for this month", True),
-        ("rate limit reached", True),
-        ("authentication failed", True),
-        ("Tool execution failed: file not found", False),
-        ("", False),
-    ],
-)
-def test_credit_exhaustion_detection(text, expected):
-    assert agent.looks_like_credit_exhaustion(text) is expected
-
-
-def test_subscription_env_strips_the_api_key(monkeypatch):
-    """The SDK prefers the key over the plan login, so it must not reach the
-    subprocess - otherwise 'subscription' silently bills the API instead."""
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-should-not-pass")
-    assert "ANTHROPIC_API_KEY" not in agent._subprocess_env()
+# The auth-selection tests lived here. They covered app/agent.py's subscription
+# credit and its fallback to an API key when that credit ran out - machinery
+# that only existed because claude-agent-sdk spawned a CLI subprocess with its
+# own login. Every tier except portfolio now runs locally for nothing, so there
+# is no credit to exhaust and nothing to fall back to. The tests are removed
+# rather than skipped: a skipped test for deleted behaviour reads as a gap.

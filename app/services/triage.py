@@ -1,8 +1,9 @@
 """Inbox triage: fetch, classify in one batched call, persist.
 
 Quick tier, not the agent. Classifying forty subject lines is a fixed-shape task
-with a fixed-shape answer - exactly what the cheap tier is for. One batched call
-costs about a tenth of a cent; forty agent turns would cost several dollars.
+with a fixed-shape answer, and one batched call with no tools is the cheapest
+way to get it. That used to mean a tenth of a cent against several dollars of
+agent turns; now that both run locally it means one prefill instead of forty.
 
 Bodies are fetched only for mail the classifier flags as needing a reply. Most
 inbox mail is a receipt or a newsletter, and there is no reason to put it
@@ -13,12 +14,13 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any
 
 from sqlmodel import Session, select
 
 from app import config, db
 from app.integrations import gmail
+from app.llm import local
+from app.llm.base import Message
 from app.services import costs
 
 log = logging.getLogger("jarvis.triage")
@@ -66,7 +68,8 @@ Example: "Confirm availability for a Thursday call." Under 15 words."""
 
 
 def available() -> bool:
-    return gmail.available() and bool(config.ANTHROPIC_API_KEY)
+    """Triage needs a mailbox and a running model. Neither is assumed."""
+    return gmail.available() and local.available()
 
 
 def classify(messages: list[gmail.Message]) -> dict[str, str]:
@@ -74,16 +77,16 @@ def classify(messages: list[gmail.Message]) -> dict[str, str]:
     if not messages:
         return {}
 
-    from app.quick import client
-
     listing = "\n".join(m.for_classifier() for m in messages)
     try:
-        resp = client().messages.create(
-            model=config.MODEL_QUICK,
-            max_tokens=2048,
+        completion = local.provider.complete(
+            messages=[Message("user", listing)],
             system=SYSTEM,
-            messages=[{"role": "user", "content": listing}],
-            output_config={"format": {"type": "json_schema", "schema": SCHEMA}},
+            # Enforced, not requested. Unconstrained, this model returns prose
+            # and every message would fall into the unparseable branch below -
+            # an inbox that silently triages nothing.
+            schema=SCHEMA,
+            max_tokens=2048,
         )
     except Exception:
         log.warning("triage classification failed", exc_info=True)
@@ -92,19 +95,15 @@ def classify(messages: list[gmail.Message]) -> dict[str, str]:
     costs.record(
         "triage",
         "quick",
-        config.MODEL_QUICK,
-        _price(resp.usage),
-        auth="api_key",
-        usage={
-            "input_tokens": resp.usage.input_tokens,
-            "output_tokens": resp.usage.output_tokens,
-        },
+        config.LOCAL_MODEL,
+        0.0,
+        auth="local",
+        usage=completion.usage.as_dict(),
     )
 
     try:
-        text = next(b.text for b in resp.content if b.type == "text")
-        items = json.loads(text)["items"]
-    except (StopIteration, json.JSONDecodeError, KeyError):
+        items = json.loads(completion.text)["items"]
+    except (json.JSONDecodeError, KeyError):
         log.warning("triage returned unparseable output")
         return {}
 
@@ -120,26 +119,20 @@ def classify(messages: list[gmail.Message]) -> dict[str, str]:
 
 def explain(message: gmail.Message) -> str | None:
     """One line on what a reply-needed message wants. None on failure."""
-    from app.quick import client
-
     body = gmail.fetch_body(message.id)
     if not body:
         return None
 
     try:
-        resp = client().messages.create(
-            model=config.MODEL_QUICK,
-            max_tokens=100,
-            system=WHY_SYSTEM,
+        completion = local.provider.complete(
             messages=[
-                {
-                    "role": "user",
-                    "content": (
-                        f"From: {message.sender}\n"
-                        f"Subject: {message.subject}\n\n{body}"
-                    ),
-                }
+                Message(
+                    "user",
+                    f"From: {message.sender}\nSubject: {message.subject}\n\n{body}",
+                )
             ],
+            system=WHY_SYSTEM,
+            max_tokens=100,
         )
     except Exception:
         log.warning("triage explain failed for %s", message.id, exc_info=True)
@@ -148,15 +141,12 @@ def explain(message: gmail.Message) -> str | None:
     costs.record(
         "triage",
         "quick",
-        config.MODEL_QUICK,
-        _price(resp.usage),
-        auth="api_key",
-        usage={
-            "input_tokens": resp.usage.input_tokens,
-            "output_tokens": resp.usage.output_tokens,
-        },
+        config.LOCAL_MODEL,
+        0.0,
+        auth="local",
+        usage=completion.usage.as_dict(),
     )
-    return next((b.text.strip() for b in resp.content if b.type == "text"), None)
+    return completion.text.strip() or None
 
 
 def run(hours: int = 24) -> dict[str, int]:
@@ -233,13 +223,3 @@ def summary(session: Session) -> dict[str, int]:
     for r in rows:
         out[r.category] = out.get(r.category, 0) + 1
     return out
-
-
-_IN_PER_MTOK = 1.00
-_OUT_PER_MTOK = 5.00
-
-
-def _price(usage: Any) -> float:
-    return (
-        usage.input_tokens * _IN_PER_MTOK + usage.output_tokens * _OUT_PER_MTOK
-    ) / 1_000_000

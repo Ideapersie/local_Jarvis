@@ -265,7 +265,15 @@ async def test_habits_and_tasks_have_no_write_tools(store):
         assert forbidden not in names
 
 
-def test_write_tools_are_namespaced_and_registered():
+def test_write_tools_are_registered():
     names = {t.name for t in agent_tools.CAREER_WRITE_TOOLS}
     assert names <= {t.name for t in agent_tools.ALL_TOOLS}
-    assert "mcp__jarvis__set_application_stage" in agent_tools.TOOL_NAMES
+    assert "set_application_stage" in agent_tools.TOOL_NAMES
+
+
+def test_career_writes_reach_the_model_through_a_profile():
+    """The handlers are useless if no profile actually offers them."""
+    from app import loop
+
+    offered = {s["function"]["name"] for s in loop.specs_for("chat_write")}
+    assert {t.name for t in agent_tools.CAREER_WRITE_TOOLS} <= offered

@@ -253,11 +253,8 @@ record what to work on with add_prep_note."""
 async def run_prep(
     app_id: int, request: Request, session: Session = Depends(get_session)
 ):
-    """Run the interview-prep skill. Costs an agent turn and searches the web."""
-    from claude_agent_sdk import ResultMessage
-
-    from app import agent
-    from app.services import costs
+    """Run the interview-prep skill against the local model."""
+    from app import loop
 
     app = _get_app(session, app_id)
     if app.next_date is None:
@@ -274,20 +271,18 @@ async def run_prep(
         days_away=(app.next_date - config.today()).days,
     )
 
-    entry = await agent.get_entry(f"prep-{app_id}")
-    async with entry.lock:
-        await entry.client.query(prompt)
-        async for msg in entry.client.receive_response():
-            if isinstance(msg, ResultMessage):
-                costs.record(
-                    "interview_prep",
-                    "agent",
-                    config.MODEL_AGENT,
-                    msg.total_cost_usd,
-                    auth=agent.active_auth(),
-                    usage=msg.usage or {},
-                )
-                break
+    # The prep profile deliberately omits get_applications: every detail it
+    # would return is already in the prompt above, and with it in scope the
+    # model routes write intents to it instead of add_prep_note.
+    await loop.run_to_text(
+        f"prep-{app_id}",
+        prompt,
+        profile="prep",
+        skill_name="interview-prep",
+        kind="interview_prep",
+        think=True,
+        max_tokens=4096,
+    )
 
     session.expire_all()
     return render(request, session)

@@ -1,14 +1,14 @@
 """Quick tier: one request, one response, no agent loop.
 
-Why this exists. The agent tier carries the whole Claude Code harness - tools,
-skills, project config - which measured at ~25k tokens of context and ~$0.095
-before the question is even read, re-sent on every internal turn. A real chat
-turn came to $0.17-0.20 and eight turns.
+Why this exists, now that both tiers are local and free. The saving is no longer
+money, it is prefill. The agent tier carries a tool profile the model must read
+before it can answer: 1379 tokens for chat_read, and prefill runs at about
+14.5 tok/s on this hardware. The snapshot below is 175 tokens and carries no
+tools at all, so a question the snapshot answers costs about a second instead of
+a minute and a half.
 
-Most chat questions are a database lookup. The dashboard's entire structured
-state fits in a few hundred tokens, so Haiku can answer from a prefetched
-snapshot for roughly $0.002 - about ninety times cheaper, and faster, because
-there is no loop.
+That is why this tier still exists after the migration, and why it must never be
+given tools.
 
 Anything needing files, the web, or multi-step reasoning escalates to the agent.
 The model decides, because a keyword list cannot tell "how is my streak" from
@@ -21,15 +21,14 @@ import json
 import logging
 from typing import Any
 
-import anthropic
 from sqlmodel import Session, select
 
 from app import config, db
+from app.llm import local
+from app.llm.base import Message
 from app.services import costs, streaks
 
 log = logging.getLogger("jarvis.quick")
-
-_client: anthropic.Anthropic | None = None
 
 ESCALATE = "__ESCALATE__"
 
@@ -68,13 +67,6 @@ RESPONSE_SCHEMA = {
     "required": ["escalate", "answer"],
     "additionalProperties": False,
 }
-
-
-def client() -> anthropic.Anthropic:
-    global _client
-    if _client is None:
-        _client = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
-    return _client
 
 
 def snapshot() -> str:
@@ -134,50 +126,47 @@ def snapshot() -> str:
 def try_answer(question: str) -> tuple[str | None, dict[str, Any]]:
     """Answer from the snapshot, or return None to signal escalation.
 
-    Returns (answer_or_None, meta). Any failure returns None so the caller
-    falls through to the agent - a broken quick tier must degrade to a slower
-    correct answer, never to a wrong one.
+    Returns (answer_or_None, meta). Any failure returns None so the caller falls
+    through to the agent - a broken quick tier must degrade to a slower correct
+    answer, never to a wrong one.
     """
-    meta: dict[str, Any] = {"tier": "quick", "model": config.MODEL_QUICK}
-
-    if not config.ANTHROPIC_API_KEY:
-        # Quick tier is a direct API call and has no subscription path.
-        return None, {**meta, "reason": "no api key"}
+    meta: dict[str, Any] = {"tier": "quick", "model": config.LOCAL_MODEL}
 
     try:
-        resp = client().messages.create(
-            model=config.MODEL_QUICK,
-            max_tokens=1024,
-            system=SYSTEM,
+        completion = local.provider.complete(
             messages=[
-                {
-                    "role": "user",
-                    "content": f"<snapshot>\n{snapshot()}\n</snapshot>\n\n{question}",
-                }
+                Message(
+                    "user",
+                    f"<snapshot>\n{snapshot()}\n</snapshot>\n\n{question}",
+                )
             ],
-            output_config={
-                "format": {"type": "json_schema", "schema": RESPONSE_SCHEMA}
-            },
+            system=SYSTEM,
+            # Enforced, not requested. Unconstrained this model scored 0/6
+            # against RESPONSE_SCHEMA: it answers correctly and then writes
+            # markdown with "escalate=false" appended. Every one of those would
+            # land in the unparseable branch below and escalate silently, which
+            # is a minute and a half of agent prefill for a question the
+            # snapshot already answered.
+            schema=RESPONSE_SCHEMA,
+            max_tokens=1024,
         )
     except Exception:
         log.warning("quick tier call failed, escalating", exc_info=True)
         return None, {**meta, "reason": "error"}
 
-    usage = {
-        "input_tokens": resp.usage.input_tokens,
-        "output_tokens": resp.usage.output_tokens,
-        "cache_read_input_tokens": getattr(resp.usage, "cache_read_input_tokens", 0),
-    }
-    cost = _price(resp.usage)
     costs.record(
-        "chat_quick", "quick", config.MODEL_QUICK, cost, auth="api_key", usage=usage
+        "chat_quick",
+        "quick",
+        config.LOCAL_MODEL,
+        0.0,
+        auth="local",
+        usage=completion.usage.as_dict(),
     )
-    meta["cost_usd"] = cost
+    meta["cost_usd"] = 0.0
 
     try:
-        text = next(b.text for b in resp.content if b.type == "text")
-        parsed = json.loads(text)
-    except (StopIteration, json.JSONDecodeError):
+        parsed = json.loads(completion.text)
+    except json.JSONDecodeError:
         log.warning("quick tier returned unparseable output, escalating")
         return None, {**meta, "reason": "unparseable"}
 
@@ -185,14 +174,3 @@ def try_answer(question: str) -> tuple[str | None, dict[str, Any]]:
         return None, {**meta, "reason": "model escalated"}
 
     return parsed["answer"], meta
-
-
-# Haiku 4.5 list pricing, USD per million tokens.
-_IN_PER_MTOK = 1.00
-_OUT_PER_MTOK = 5.00
-
-
-def _price(usage: Any) -> float:
-    return (
-        usage.input_tokens * _IN_PER_MTOK + usage.output_tokens * _OUT_PER_MTOK
-    ) / 1_000_000

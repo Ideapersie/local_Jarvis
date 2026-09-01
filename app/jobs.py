@@ -112,11 +112,8 @@ def creatine_check() -> None:
 
 
 async def weekly_reflection() -> None:
-    """Rewrites goals.md from the week's real data. Agent tier, once a week."""
-    from claude_agent_sdk import ResultMessage
-
-    from app import agent
-    from app.services import costs
+    """Rewrites goals.md from the week's real data. Once a week."""
+    from app import loop
 
     log.info("Sunday job: weekly reflection")
     prompt = (
@@ -127,20 +124,17 @@ async def weekly_reflection() -> None:
         "Reply with two sentences on what changed."
     )
     try:
-        entry = await agent.get_entry("weekly-reflection")
-        async with entry.lock:
-            await entry.client.query(prompt)
-            async for msg in entry.client.receive_response():
-                if isinstance(msg, ResultMessage):
-                    costs.record(
-                        "reflection",
-                        "agent",
-                        config.MODEL_AGENT,
-                        msg.total_cost_usd,
-                        auth=agent.active_auth(),
-                        usage=msg.usage or {},
-                    )
-                    break
+        # Files only, and think=True: this job compares a month of intent
+        # against a week of evidence, which is the kind of work reasoning is
+        # actually worth paying tokens for.
+        await loop.run_to_text(
+            "weekly-reflection",
+            prompt,
+            profile="reflection",
+            kind="reflection",
+            think=True,
+            max_tokens=4096,
+        )
     except Exception:
         log.exception("weekly reflection failed")
 

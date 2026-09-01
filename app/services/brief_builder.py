@@ -11,13 +11,12 @@ from __future__ import annotations
 import logging
 from datetime import date, timedelta
 
-from claude_agent_sdk import AssistantMessage, ResultMessage, TextBlock
 from sqlmodel import Session, select
 
 from app import config, db
 from app.integrations import gcal
 from app.integrations import weather as weather_mod
-from app.services import costs, streaks, triage
+from app.services import streaks, triage
 
 log = logging.getLogger("jarvis.brief")
 
@@ -232,8 +231,8 @@ Write the brief to {path}, then reply with a two-sentence summary only."""
 
 
 async def build(day: date | None = None) -> db.Brief | None:
-    """Gather, ask the agent for judgement, persist. Returns the Brief row."""
-    from app import agent
+    """Gather, ask the model for judgement, persist. Returns the Brief row."""
+    from app import loop
 
     day = day or config.today()
     config.BRIEFS_DIR.mkdir(parents=True, exist_ok=True)
@@ -242,46 +241,30 @@ async def build(day: date | None = None) -> db.Brief | None:
     facts = gather(day)
     prompt = PROMPT.format(facts=render_facts(facts), path=path)
 
-    summary_parts: list[str] = []
     try:
-        entry = await agent.get_entry(f"brief-{day.isoformat()}")
-        async with entry.lock:
-            await entry.client.query(prompt)
-            async for msg in entry.client.receive_response():
-                if isinstance(msg, AssistantMessage):
-                    for block in msg.content:
-                        if isinstance(block, TextBlock) and block.text:
-                            summary_parts.append(block.text)
-                elif isinstance(msg, ResultMessage):
-                    costs.record(
-                        "brief",
-                        "agent",
-                        config.MODEL_AGENT,
-                        msg.total_cost_usd,
-                        auth=agent.active_auth(),
-                        usage=msg.usage or {},
-                    )
-                    log.info(
-                        "brief built for %s: cost=$%.4f turns=%d",
-                        day,
-                        msg.total_cost_usd or 0.0,
-                        msg.num_turns,
-                    )
-                    break
+        # The brief profile carries no database tools: gather() has already
+        # computed every number and the prompt says not to re-fetch them.
+        # think=True because this is the one job that genuinely reasons - it
+        # weighs goals against the week rather than looking a value up.
+        summary = await loop.run_to_text(
+            f"brief-{day.isoformat()}",
+            prompt,
+            profile="brief",
+            skill_name="brief-writer",
+            kind="brief",
+            think=True,
+            max_tokens=4096,
+        )
     except Exception:
         log.exception("brief generation failed for %s", day)
         return None
 
     if not path.exists():
-        log.error("agent did not write %s - not recording a brief", path)
+        log.error("model did not write %s - not recording a brief", path)
         return None
 
     body = path.read_text(encoding="utf-8")
-    # Only the final block. Joining every TextBlock concatenated the agent's
-    # own narration ("Now invoking the brief-writer skill...") onto the answer,
-    # and that string is what the dashboard panel renders.
-    summary = summary_parts[-1].strip() if summary_parts else ""
-    return _persist(day, path, summary, _extract_urgent(body))
+    return _persist(day, path, summary.strip(), _extract_urgent(body))
 
 
 def _extract_urgent(body: str) -> str | None:

@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlmodel import Session
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from app import agent, config, jobs
+from app import config, jobs, loop
 from app.db import create_db_and_tables, engine, seed_habits
 from app.deps import get_session, templates
 from app.routers import brief, career, chat, habits, tasks, weather
@@ -35,9 +35,10 @@ async def lifespan(app: FastAPI):
     if seeded:
         log.info("seeded %d habits", seeded)
     jobs.start()
-    # Each agent session owns a CLI subprocess, so idle ones must be closed
-    # rather than left to accumulate.
-    reaper = asyncio.create_task(agent.reaper_loop())
+    # Sessions hold conversation history rather than a subprocess now, so this
+    # bounds memory rather than processes - but an unbounded history on a 8k
+    # context window is its own failure, so it still runs.
+    reaper = asyncio.create_task(loop.reaper_loop())
     # Backgrounded, not awaited: a missed brief costs an agent turn of ten-odd
     # seconds, and the dashboard should not sit unreachable while it runs.
     catchup = asyncio.create_task(jobs.catch_up())
@@ -46,7 +47,7 @@ async def lifespan(app: FastAPI):
         task.cancel()
         with suppress(asyncio.CancelledError):
             await task
-    await agent.shutdown_all()
+    await loop.shutdown_all()
     jobs.shutdown()
 
 

@@ -12,16 +12,57 @@ anything it can act on.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any
 
-from claude_agent_sdk import ToolAnnotations, create_sdk_mcp_server, tool
 from sqlmodel import Session, select
 
 from app import config, db
 from app.services import streaks
 
 log = logging.getLogger("jarvis.agent_tools")
+
+
+# The @tool decorator and its annotations used to come from claude_agent_sdk.
+# The handlers below never depended on the SDK - only this wrapper did - so it
+# is reproduced here rather than rewriting eleven working functions. The JSON
+# Schema the model actually sees lives in app/llm/tools.py, because the shorthand
+# accepted here cannot express required, enums or defaults.
+@dataclass(frozen=True, slots=True)
+class ToolAnnotations:
+    readOnlyHint: bool = False
+    destructiveHint: bool | None = None
+    openWorldHint: bool | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class Tool:
+    name: str
+    description: str
+    input_schema: dict[str, Any]
+    handler: Callable[..., Any]
+    annotations: ToolAnnotations
+
+
+def tool(
+    name: str,
+    description: str,
+    input_schema: dict[str, Any],
+    annotations: ToolAnnotations | None = None,
+) -> Callable[[Callable[..., Any]], Tool]:
+    def wrap(fn: Callable[..., Any]) -> Tool:
+        return Tool(
+            name=name,
+            description=description,
+            input_schema=input_schema,
+            handler=fn,
+            annotations=annotations or ToolAnnotations(),
+        )
+
+    return wrap
+
 
 READ_ONLY = ToolAnnotations(readOnlyHint=True, openWorldHint=False)
 
@@ -449,7 +490,7 @@ CAREER_WRITE_TOOLS = [
 
 ALL_TOOLS = [*READ_TOOLS, *CAREER_WRITE_TOOLS]
 
-# Key in mcp_servers becomes the {server} in mcp__{server}__{tool}.
-jarvis_server = create_sdk_mcp_server(name="jarvis", version="1.0.0", tools=ALL_TOOLS)
-
-TOOL_NAMES = [f"mcp__jarvis__{t.name}" for t in ALL_TOOLS]
+# No mcp__jarvis__ prefix any more. The names were namespaced because the SDK
+# mounted these as an MCP server; app/loop.py dispatches them directly, and a
+# shorter name is one less thing for a 3-bit model to reproduce exactly.
+TOOL_NAMES = [t.name for t in ALL_TOOLS]
