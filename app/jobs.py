@@ -179,7 +179,19 @@ def start() -> AsyncIOScheduler:
         return _scheduler
 
     _scheduler = AsyncIOScheduler(timezone=config.TIMEZONE)
-    common = dict(replace_existing=True, max_instances=1, coalesce=True)
+    # misfire_grace_time is the difference between a brief and no brief. The
+    # laptop is usually asleep at 06:30 - the user is up until about 02:00 - and
+    # APScheduler's default grace is one second, so a trigger that passes during
+    # sleep is skipped outright rather than deferred. catch_up() covers the case
+    # where the app restarts; this covers the far more common one where the
+    # machine simply wakes with the app still running. Six hours, then coalesce
+    # collapses the backlog to a single run.
+    common = dict(
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=6 * 3600,
+    )
 
     # Before triage and the brief: yesterday's Claude Code memories should be on
     # disk before anything reads brain/.
