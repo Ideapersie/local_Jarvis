@@ -67,10 +67,18 @@ Write-Host "ngl=$Ngl ctx=$Ctx port=$Port" -ForegroundColor Cyan
 
 # --jinja is required or the model's tool-calling chat template is ignored and
 # every tool call comes back as plain text.
+# --parallel 1 is a performance setting, not a concurrency one. With the default
+# four slots, consecutive requests rotate between them and each one re-processes
+# the shared prefix - the system prompt and tool specs - from scratch. Measured,
+# that is the difference between a warm tool call taking 133s and taking 20s.
+# Jarvis is one user; there is nothing to gain from four slots and a great deal
+# to lose. --cache-reuse lets a partially matching prefix be reused too.
 $serverArgs = @(
     "-m", $gguf,
     "-ngl", $Ngl,
     "-c", $Ctx,
+    "--parallel", "1",
+    "--cache-reuse", "256",
     "--host", "127.0.0.1",
     "--port", $Port,
     "--jinja"
