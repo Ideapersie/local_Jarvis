@@ -294,3 +294,60 @@ def test_answer_json_enforces_the_schema(monkeypatch):
     loop.answer_json("q", schema)
     assert captured["schema"] is schema
     assert not captured.get("tools")
+
+
+# --- context window ---------------------------------------------------------
+
+
+def test_trim_keeps_short_history_untouched():
+    history = [Message("user", "task"), Message("assistant", "ok")]
+    assert loop.trim(history) == history
+
+
+def test_trim_always_keeps_the_original_task():
+    """A turn that forgets what it was asked is worse than one that forgets how
+    it got here."""
+    history = [Message("user", "write the brief")]
+    history += [Message("tool", "x" * 4000, tool_call_id=str(i)) for i in range(10)]
+    kept = loop.trim(history, budget=500)
+    assert kept[0].content == "write the brief"
+    assert len(kept) < len(history)
+
+
+def test_trim_drops_oldest_first():
+    history = [
+        Message("user", "task"),
+        Message("tool", "oldest " * 400, tool_call_id="1"),
+        Message("tool", "newest", tool_call_id="2"),
+    ]
+    kept = loop.trim(history, budget=100)
+    assert kept[-1].content == "newest"
+    assert not any("oldest" in m.content for m in kept[1:])
+
+
+def test_trim_counts_tool_call_arguments():
+    """write_file carries the whole brief as an argument; ignoring that is how
+    the 2 September brief walked past the window."""
+    plain = Message("assistant", "")
+    fat = Message(
+        "assistant",
+        "",
+        tool_calls=[
+            ToolCall(id="c", name="write_file", arguments={"content": "x" * 4000})
+        ],
+    )
+    assert loop._size(fat) > loop._size(plain) + 1000
+
+
+def test_context_overflow_is_reported_as_itself(monkeypatch):
+    """Reporting it as 'is the server running' sends you to the wrong place."""
+
+    class _Full:
+        def complete(self, **kwargs):
+            raise LLMError("Error code: 500 - Context size has been exceeded.")
+
+    monkeypatch.setattr(loop.local, "provider", _Full())
+    events = _run("ctx", "long one")
+    errors = [e.data for e in events if e.kind == "error"]
+    assert any("context window" in e for e in errors)
+    assert not any("llama-server" in e for e in errors)

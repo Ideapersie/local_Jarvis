@@ -23,6 +23,7 @@ about 133s uncached.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import time
 from collections.abc import AsyncIterator, Callable
@@ -239,6 +240,62 @@ def live_session_count() -> int:
 # --- the loop ---------------------------------------------------------------
 
 
+
+# Rough, and deliberately so: an exact count needs a tokenizer round-trip per
+# message, which costs more than the slack a conservative estimate buys.
+CHARS_PER_TOKEN = 3.5
+
+# What the loop may fill before it starts dropping history. The server runs at
+# 8192; the rest is headroom for the reply and for this estimate being wrong.
+HISTORY_BUDGET_TOKENS = 5200
+
+
+def _size(message: Message) -> float:
+    n = len(message.content)
+    for call in message.tool_calls:
+        n += len(call.name) + len(json.dumps(call.arguments))
+    return n / CHARS_PER_TOKEN
+
+
+def trim(
+    history: list[Message], budget: float = HISTORY_BUDGET_TOKENS
+) -> list[Message]:
+    """Drop the oldest middle of the conversation to fit the context window.
+
+    Measured the hard way: the 06:30 brief ran for nine minutes on 2 September
+    and then died on 'Context size has been exceeded'. Nothing was over-long on
+    its own - the system prompt, tools and facts come to about 3100 tokens - but
+    eight iterations of assistant message plus tool result, one of them carrying
+    the whole brief as a write_file argument, walked past 8192.
+
+    Raising the window was the obvious fix and the wrong one: at 16k the KV
+    cache costs enough VRAM to drop generation from 4.56 to 2.77 tok/s, which
+    would take the brief past half an hour.
+
+    The first user message is always kept - it carries the task, and a turn that
+    forgets what it was asked is worse than one that forgets how it got here.
+    """
+    if not history:
+        return history
+
+    kept: list[Message] = []
+    used = 0.0
+    # Walk backwards: recent context is what the next step actually needs.
+    for message in reversed(history[1:]):
+        cost = _size(message)
+        if used + cost > budget:
+            break
+        kept.append(message)
+        used += cost
+    kept.reverse()
+
+    first = history[0]
+    dropped = len(history) - 1 - len(kept)
+    if dropped:
+        log.info("trimmed %d message(s) to stay inside the context window", dropped)
+    return [first, *kept]
+
+
 async def _complete(**kwargs: Any) -> Completion:
     """The provider call is blocking; keep it off the event loop."""
     return await asyncio.to_thread(local.provider.complete, **kwargs)
@@ -270,6 +327,7 @@ async def run_turn(
 
         try:
             for _ in range(MAX_ITERATIONS):
+                entry.history = trim(entry.history)
                 completion = await _complete(
                     messages=entry.history,
                     system=system,
@@ -313,10 +371,21 @@ async def run_turn(
                 yield Event("error", "I ran out of steps before finishing that.")
 
         except LLMError as exc:
-            log.warning("model call failed: %s", exc)
-            yield Event(
-                "error", "The local model is not responding. Is llama-server running?"
-            )
+            # Distinguish the two, because they send you somewhere different.
+            # The 2 September brief died on a context overflow and reported it
+            # as "is llama-server running", which is a wrong afternoon.
+            if "context" in str(exc).lower():
+                log.warning("context window exceeded: %s", exc)
+                yield Event(
+                    "error",
+                    "That turn outgrew the model's context window before it finished.",
+                )
+            else:
+                log.warning("model call failed: %s", exc)
+                yield Event(
+                    "error",
+                    "The local model is not responding. Is llama-server running?",
+                )
         except asyncio.CancelledError:
             raise
         except Exception:
